@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = ["crates/domain", "crates/storage", "crates/cli"]
+
+[workspace.package]
+edition = "2024"
+license-file = "LICENSE"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+chrono-tz = "0.10"
+clap = { version = "4", features = ["derive", "env"] }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+ydb = "0.18"
+
+bodyweight-domain = { path = "crates/domain" }
+bodyweight-storage = { path = "crates/storage" }

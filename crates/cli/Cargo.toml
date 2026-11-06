@@ -1,0 +1,19 @@
+[package]
+name = "bodyweight-cli"
+version = "0.1.0"
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "bodyweight"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+bodyweight-domain.workspace = true
+bodyweight-storage.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true
+clap.workspace = true
+tokio.workspace = true

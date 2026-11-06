@@ -1,0 +1,43 @@
+# Local development environment: YDB with the schema from migrations/.
+# Used by `make dev`, `make dev-down` and `make dev-clean`.
+name: bodyweight-dev
+
+services:
+  ydb:
+    image: ydbplatform/local-ydb:latest
+    platform: linux/amd64
+    # YDB discovery advertises the container hostname. "localhost" makes the
+    # advertised endpoint reachable both from the host and from `migrate`.
+    hostname: localhost
+    ports:
+      - "2136:2136"
+      - "8765:8765"
+    # Certificates are generated on first start and must survive restarts with the data.
+    volumes:
+      - ydb-data:/ydb_data
+      - ydb-certs:/ydb_certs
+    healthcheck:
+      test: ["CMD-SHELL", "sh /health_check"]
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 5s
+
+  migrate:
+    image: ghcr.io/kukymbr/goose-docker:latest
+    profiles: [tools]
+    # Shares the network namespace of ydb, so localhost:2136 is YDB.
+    network_mode: service:ydb
+    depends_on:
+      ydb:
+        condition: service_healthy
+    environment:
+      GOOSE_DRIVER: ydb
+      GOOSE_DBSTRING: grpc://localhost:2136/local?go_query_mode=scripting&go_fake_tx=scripting&go_query_bind=declare,numeric
+      GOOSE_COMMAND: up
+    volumes:
+      - ../migrations:/migrations:ro
+
+volumes:
+  ydb-data:
+  ydb-certs:

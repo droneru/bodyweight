@@ -135,7 +135,8 @@
   - создать тренировку, добавить в неё выполнение упражнения и подходы;
   - посмотреть список тренировок;
   - посмотреть список упражнений;
-  - посмотреть текущие рекорды.
+  - посмотреть текущие рекорды;
+  - посмотреть список взвешиваний (`bodyweight weigh-ins list`) и добавить взвешивание (`bodyweight weigh-ins add 82.5 [--date YYYY-MM-DD]`). Дата по умолчанию — сегодняшняя в часовом поясе Europe/Moscow.
 - Предложенных подходов в CLI нет.
 
 ## 6. Архитектура и стек
@@ -155,7 +156,7 @@ crates/server        axum: API, OAuth Яндекс ID, сессии, разда�
 crates/cli           админский CLI
 web/                 React + TypeScript (Vite)
 migrations/          YQL-миграции схемы (goose)
-deploy/              Dockerfile, docker-compose.yml, Caddyfile
+deploy/              Dockerfile, docker-compose.yml, Caddyfile, docker-compose.dev.yml (make dev)
 Makefile
 ```
 
@@ -174,7 +175,11 @@ Makefile
 | `make docker` | Собирает docker-образ веб-приложения |
 | `make cli` | Собирает CLI (release) |
 | `make migrate` | Применяет YQL-миграции через goose к YDB из env-переменных |
-| `make dev` | Локальный запуск: YDB в docker, сервер с dev-логином, vite dev server |
+| `make dev` | Локальный запуск: YDB в docker с применёнными миграциями, сервер с dev-логином, vite dev server |
+| `make dev-env` | Печатает env-переменные для подключения CLI к YDB из `make dev` |
+| `make dev-ydb` | Открывает ydb CLI на YDB из `make dev`: интерактивный YQL, либо команда из `ARGS` |
+| `make dev-down` | Останавливает dev-окружение, данные YDB сохраняются |
+| `make dev-clean` | Останавливает dev-окружение и удаляет данные YDB |
 | `make lint` | `cargo fmt --check`, `cargo clippy`, eslint, prettier |
 | `make deploy` | На VPS: `git pull && docker compose up -d --build` |
 
