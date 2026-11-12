@@ -1,7 +1,6 @@
 # Production: the web app. Used by `make deploy` on the VPS.
-# HTTPS and routing by domain are done by the shared caddy on the VPS
-# (/root/src/compose/caddy), which reaches the app as bodyweight-app:3000
-# over the external "proxy" network.
+# HTTPS and routing by domain are done by a shared reverse proxy on the VPS,
+# which reaches the app as bodyweight-app:3000 over the external "proxy" network.
 name: bodyweight
 
 services:

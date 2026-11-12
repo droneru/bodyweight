@@ -34,8 +34,8 @@ On the VPS, from a clone of the repository (only docker is needed):
 make deploy                   # git pull, rebuild the app image, restart the app
 ```
 
-HTTPS is served by the shared Caddy on the VPS (`/root/src/compose/caddy`), which
-obtains certificates automatically and proxies bodyweight.ru to `bodyweight-app:3000`
+HTTPS is served by a shared reverse proxy on the VPS (e.g. Caddy), which obtains
+certificates automatically and proxies bodyweight.ru to `bodyweight-app:3000`
 over the external docker network `proxy`. Ports 80 and 443 must be open and the domain
 must point at the VPS.
 
