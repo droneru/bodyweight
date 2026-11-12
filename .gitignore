@@ -29,4 +29,4 @@ web/dist
 
 # Production secrets, see deploy/.env.example
 deploy/.env
-deploy/sa-key.json
+deploy/secrets/

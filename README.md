@@ -40,17 +40,17 @@ Yandex OAuth application for sign-in.
 One-time setup:
 
 1. Give the sa the `ydb.editor` role on the database (or on its folder).
-2. Create an authorized key of the sa and put it on the VPS as `deploy/sa-key.json`:
+2. Create an authorized key of the sa and put it on the VPS as `deploy/secrets/sa-key.json`:
    ```sh
-   yc iam key create --service-account-name <sa name> -o deploy/sa-key.json
+   yc iam key create --service-account-name <sa name> -o deploy/secrets/sa-key.json
    ```
    The app runs as uid 65532 and must be able to read it:
-   `sudo chown 65532 deploy/sa-key.json && sudo chmod 400 deploy/sa-key.json`.
+   `sudo chown 65532 deploy/secrets/sa-key.json && sudo chmod 400 deploy/secrets/sa-key.json`.
 3. Register an application at [oauth.yandex.ru](https://oauth.yandex.ru) with the Redirect URI
    `https://bodyweight.ru/api/auth/yandex/callback` and the permissions `login:info` and
    `login:avatar`.
-4. Copy `deploy/.env.example` to `deploy/.env` on the VPS and fill in the YDB location and the
-   ClientID and Client secret of the application.
+4. Copy `deploy/.env.example` to `deploy/.env` on the VPS and fill in the YDB location and
+   credentials and the ClientID and Client secret of the application.
 
 Before deploying a version with new migrations, apply them (from any machine with docker):
 
