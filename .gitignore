@@ -26,3 +26,7 @@ rustc-ice-*.txt
 # Frontend
 web/node_modules
 web/dist
+
+# Production secrets, see deploy/.env.example
+deploy/.env
+deploy/sa-key.json

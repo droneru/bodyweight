@@ -27,6 +27,52 @@ body {
 
 .top {
   padding: 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 68px;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar.placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.login {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link {
+  flex: none;
+  padding: 6px 0 6px 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .logo {
@@ -53,6 +99,9 @@ h1 {
 }
 
 .cta {
+  display: block;
+  text-align: center;
+  text-decoration: none;
   width: 100%;
   max-width: 320px;
   padding: 14px 20px;
@@ -64,14 +113,34 @@ h1 {
   color: #1a1300;
 }
 
-.cta:disabled {
-  opacity: 0.55;
-}
-
-.soon {
+.hint {
   margin: 10px 0 0;
   font-size: 0.875rem;
   color: var(--muted);
+}
+
+.dev-sign-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 0.875rem;
+}
+
+.dev-sign-in input,
+.dev-sign-in button {
+  padding: 8px 10px;
+  border: 1px solid #2a3039;
+  border-radius: 8px;
+  font: inherit;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dev-sign-in input {
+  min-width: 0;
+  flex: 1;
+  max-width: 180px;
 }
 
 .features {

@@ -8,7 +8,11 @@ DEV_YDB_ENDPOINT := grpc://localhost:2136
 DEV_YDB_DATABASE := /local
 DEV_ENV := YDB_ENDPOINT=$(DEV_YDB_ENDPOINT) YDB_DATABASE=$(DEV_YDB_DATABASE) YDB_ANONYMOUS_CREDENTIALS=1
 
-.PHONY: help test lint cli web docker deploy dev dev-db dev-env dev-ydb dev-down dev-clean
+# The same goose image and YDB driver settings as the `migrate` service of the dev compose file.
+GOOSE_IMAGE      := ghcr.io/kukymbr/goose-docker:latest
+GOOSE_YDB_PARAMS := go_query_mode=scripting&go_fake_tx=scripting&go_query_bind=declare,numeric
+
+.PHONY: help test lint cli web docker migrate deploy dev dev-db dev-env dev-ydb dev-down dev-clean
 
 help:
 	@echo "make test       Rust unit tests"
@@ -16,6 +20,7 @@ help:
 	@echo "make cli        Build the CLI (release) into target/release/bodyweight"
 	@echo "make web        Build the SPA into web/dist"
 	@echo "make docker     Build the web app docker image"
+	@echo "make migrate    Apply migrations to the YDB from YDB_ENDPOINT, YDB_DATABASE, YDB_ACCESS_TOKEN_CREDENTIALS"
 	@echo "make deploy     On the VPS: git pull, rebuild the app and restart it behind caddy (HTTPS)"
 	@echo "make dev        Start YDB, the server and the Vite dev server: http://localhost:5173"
 	@echo "make dev-db     Only start YDB in docker and apply migrations"
@@ -44,6 +49,18 @@ web: web/node_modules
 
 docker:
 	$(COMPOSE_PROD) build app
+
+# Applies migrations/ to a remote YDB, e.g. the production Serverless YDB. Run before deploying.
+# goose only takes a token, so pass an IAM token:
+#   YDB_ENDPOINT=grpcs://ydb.serverless.yandexcloud.net:2135 YDB_DATABASE=/ru-central1/... \
+#   YDB_ACCESS_TOKEN_CREDENTIALS=$(yc iam create-token) make migrate
+# The connection string goes through the environment so the token is not echoed.
+migrate:
+	@test -n "$$YDB_ENDPOINT" && test -n "$$YDB_DATABASE" && test -n "$$YDB_ACCESS_TOKEN_CREDENTIALS" \
+		|| { echo "Set YDB_ENDPOINT, YDB_DATABASE and YDB_ACCESS_TOKEN_CREDENTIALS"; exit 1; }
+	@GOOSE_DBSTRING="$$YDB_ENDPOINT$$YDB_DATABASE?token=$$YDB_ACCESS_TOKEN_CREDENTIALS&$(GOOSE_YDB_PARAMS)" \
+	docker run --rm -e GOOSE_DRIVER=ydb -e GOOSE_COMMAND=up -e GOOSE_DBSTRING \
+		-v "$(CURDIR)/migrations:/migrations:ro" $(GOOSE_IMAGE)
 
 # Run on the VPS from the repository clone. HTTPS is done by the shared caddy on the VPS.
 deploy:

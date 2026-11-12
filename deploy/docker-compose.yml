@@ -10,6 +10,14 @@ services:
       dockerfile: deploy/Dockerfile
     image: bodyweight:latest
     restart: unless-stopped
+    # YDB location and the Yandex OAuth application, see deploy/.env.example.
+    env_file: .env
+    environment:
+      BODYWEIGHT_PUBLIC_URL: https://bodyweight.ru
+      YDB_SERVICE_ACCOUNT_KEY_FILE_CREDENTIALS: /run/secrets/sa-key.json
+    volumes:
+      # Authorized key of the sa. The app runs as uid 65532 and must be able to read it.
+      - ./sa-key.json:/run/secrets/sa-key.json:ro
     expose:
       - "3000"
     networks:

@@ -89,3 +89,9 @@ _Avoid_: Client, account, athlete
 **Admin** (Администратор):
 An operator with direct database access who works through the CLI on behalf of a user.
 _Avoid_: Operator, superuser
+
+### Infrastructure
+
+**sa**:
+The Yandex Cloud service account the app uses to connect to YDB in production. Always written "sa".
+_Avoid_: Service account (spelled out), robot, service user

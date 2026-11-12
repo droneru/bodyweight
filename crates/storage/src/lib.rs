@@ -2,7 +2,7 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use bodyweight_domain::{Bodyweight, WeighIn};
+use bodyweight_domain::{Bodyweight, User, WeighIn};
 use chrono::NaiveDate;
 use ydb::{Client, ClientBuilder, FromEnvCredentials, Value};
 
@@ -24,6 +24,13 @@ pub type Result<T> = std::result::Result<T, StorageError>;
 
 pub struct Storage {
     client: Client,
+}
+
+/// A signed-in user's session, see `Storage::find_session`.
+#[derive(Debug, Clone)]
+pub struct Session {
+    pub user: User,
+    pub expires_at: SystemTime,
 }
 
 impl Storage {
@@ -88,6 +95,116 @@ impl Storage {
             .param("$user_login", user_login)
             .param("$date", date_to_ydb(weigh_in.date)?)
             .param("$bodyweight_tenths", weigh_in.bodyweight.tenths())
+            .idempotent(true)
+            .await?;
+        Ok(())
+    }
+
+    /// Creates the user or updates their profile. `yandex_uid` is absent for dev-login users.
+    pub async fn upsert_user(&self, user: &User, yandex_uid: Option<&str>) -> Result<()> {
+        self.client
+            .query_client()
+            .exec(
+                "DECLARE $login AS Utf8;
+                 DECLARE $yandex_uid AS Utf8?;
+                 DECLARE $display_name AS Utf8;
+                 DECLARE $avatar_id AS Utf8?;
+                 UPSERT INTO users (login, yandex_uid, display_name, avatar_id)
+                 VALUES ($login, $yandex_uid, $display_name, $avatar_id);",
+            )
+            .param("$login", user.login.as_str())
+            .param("$yandex_uid", yandex_uid.map(str::to_owned))
+            .param("$display_name", user.display_name.as_str())
+            .param("$avatar_id", user.avatar_id.clone())
+            .idempotent(true)
+            .await?;
+        Ok(())
+    }
+
+    /// Creates a session. `id` is whatever the caller looks sessions up by;
+    /// the server passes a hash of the cookie value.
+    pub async fn create_session(
+        &self,
+        id: &str,
+        user_login: &str,
+        expires_at: SystemTime,
+    ) -> Result<()> {
+        self.client
+            .query_client()
+            .exec(
+                "DECLARE $id AS Utf8;
+                 DECLARE $user_login AS Utf8;
+                 DECLARE $expires_at AS Timestamp;
+                 UPSERT INTO sessions (id, user_login, expires_at)
+                 VALUES ($id, $user_login, $expires_at);",
+            )
+            .param("$id", id)
+            .param("$user_login", user_login)
+            .param("$expires_at", Value::Timestamp(expires_at))
+            .idempotent(true)
+            .await?;
+        Ok(())
+    }
+
+    /// The session and its user, unless the session is missing or expired at `now`.
+    pub async fn find_session(&self, id: &str, now: SystemTime) -> Result<Option<Session>> {
+        let result_set = self
+            .client
+            .query_client()
+            .query_result_set(
+                "DECLARE $id AS Utf8;
+                 DECLARE $now AS Timestamp;
+                 SELECT u.login AS login, u.display_name AS display_name,
+                        u.avatar_id AS avatar_id, s.expires_at AS expires_at
+                 FROM sessions AS s
+                 INNER JOIN users AS u ON u.login = s.user_login
+                 WHERE s.id = $id AND s.expires_at > $now;",
+            )
+            .param("$id", id)
+            .param("$now", Value::Timestamp(now))
+            .idempotent(true)
+            .await?;
+
+        result_set
+            .rows()
+            .next()
+            .map(|mut row| {
+                Ok(Session {
+                    user: User {
+                        login: row.remove_field_by_name("login")?.try_into()?,
+                        display_name: row.remove_field_by_name("display_name")?.try_into()?,
+                        avatar_id: row.remove_field_by_name("avatar_id")?.try_into()?,
+                    },
+                    expires_at: row.remove_field_by_name("expires_at")?.try_into()?,
+                })
+            })
+            .transpose()
+    }
+
+    /// Moves the expiry of an existing session; does nothing if the session is gone.
+    pub async fn extend_session(&self, id: &str, expires_at: SystemTime) -> Result<()> {
+        self.client
+            .query_client()
+            .exec(
+                "DECLARE $id AS Utf8;
+                 DECLARE $expires_at AS Timestamp;
+                 UPDATE sessions SET expires_at = $expires_at WHERE id = $id;",
+            )
+            .param("$id", id)
+            .param("$expires_at", Value::Timestamp(expires_at))
+            .idempotent(true)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_session(&self, id: &str) -> Result<()> {
+        self.client
+            .query_client()
+            .exec(
+                "DECLARE $id AS Utf8;
+                 DELETE FROM sessions WHERE id = $id;",
+            )
+            .param("$id", id)
             .idempotent(true)
             .await?;
         Ok(())
