@@ -8,10 +8,11 @@ A strength-training log at [bodyweight.ru](https://bodyweight.ru). Record workou
 
 ## Development
 
-Requires docker and a Rust toolchain.
+Requires docker, a Rust toolchain and node.
 
 ```sh
-make dev                      # start YDB in docker and apply migrations
+make dev                      # YDB in docker + server + Vite: http://localhost:5173
+make dev-db                   # only YDB with migrations applied
 make cli                      # build target/release/bodyweight
 eval "$(make -s dev-env)"     # fish: make -s dev-env | source
 export BODYWEIGHT_USER=alice  # Yandex login to act on behalf of
@@ -24,6 +25,17 @@ make dev-ydb ARGS="sql -s 'SELECT * FROM weigh_ins'"
 
 make dev-down                 # stop, keep data; make dev-clean also deletes it
 ```
+
+## Deployment
+
+On the VPS, from a clone of the repository (only docker is needed):
+
+```sh
+make deploy                   # git pull, rebuild the app image, restart app + caddy
+```
+
+Caddy (`deploy/Caddyfile`) serves bodyweight.ru over HTTPS and obtains certificates
+automatically; ports 80 and 443 must be open and the domain must point at the VPS.
 
 ## Docs
 

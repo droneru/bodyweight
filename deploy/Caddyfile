@@ -1,0 +1,6 @@
+# Caddy obtains and renews the Let's Encrypt certificate automatically
+# and redirects HTTP to HTTPS. www is not served, see docs/spec.md.
+bodyweight.ru {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
