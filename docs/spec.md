@@ -156,7 +156,7 @@ crates/server        axum: API, OAuth Яндекс ID, сессии, разда�
 crates/cli           админский CLI
 web/                 React + TypeScript (Vite)
 migrations/          YQL-миграции схемы (goose)
-deploy/              Dockerfile, docker-compose.yml, Caddyfile, docker-compose.dev.yml (make dev)
+deploy/              Dockerfile, docker-compose.yml, docker-compose.dev.yml (make dev)
 Makefile
 ```
 
@@ -196,7 +196,7 @@ Makefile
 ## 8. Развёртывание
 
 - Домен **bodyweight.ru**. `www` не поддерживается.
-- VPS с docker compose: контейнер **caddy** (HTTPS, автоматические сертификаты, reverse proxy) и контейнер приложения.
+- VPS с docker compose: контейнер приложения за общим для сервера **caddy** (HTTPS, автоматические сертификаты, роутинг по домену), связь через внешнюю docker-сеть `proxy`.
 - База — Serverless YDB, параметры подключения передаются через env.
 - Образ собирается прямо на VPS из клона репозитория (`make deploy`).
 - CI/CD пока не описывается.

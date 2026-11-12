@@ -45,7 +45,7 @@ web: web/node_modules
 docker:
 	$(COMPOSE_PROD) build app
 
-# Run on the VPS from the repository clone. Caddy obtains and renews HTTPS certificates itself.
+# Run on the VPS from the repository clone. HTTPS is done by the shared caddy on the VPS.
 deploy:
 	git pull --ff-only
 	$(COMPOSE_PROD) up -d --build --remove-orphans

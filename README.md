@@ -31,11 +31,13 @@ make dev-down                 # stop, keep data; make dev-clean also deletes it
 On the VPS, from a clone of the repository (only docker is needed):
 
 ```sh
-make deploy                   # git pull, rebuild the app image, restart app + caddy
+make deploy                   # git pull, rebuild the app image, restart the app
 ```
 
-Caddy (`deploy/Caddyfile`) serves bodyweight.ru over HTTPS and obtains certificates
-automatically; ports 80 and 443 must be open and the domain must point at the VPS.
+HTTPS is served by the shared Caddy on the VPS (`/root/src/compose/caddy`), which
+obtains certificates automatically and proxies bodyweight.ru to `bodyweight-app:3000`
+over the external docker network `proxy`. Ports 80 and 443 must be open and the domain
+must point at the VPS.
 
 ## Docs
 

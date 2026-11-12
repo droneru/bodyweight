@@ -1,5 +1,7 @@
-# Production: caddy (HTTPS with automatic certificates, reverse proxy) and the web app.
-# Used by `make deploy` on the VPS.
+# Production: the web app. Used by `make deploy` on the VPS.
+# HTTPS and routing by domain are done by the shared caddy on the VPS
+# (/root/src/compose/caddy), which reaches the app as bodyweight-app:3000
+# over the external "proxy" network.
 name: bodyweight
 
 services:
@@ -11,22 +13,11 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    networks:
+      proxy:
+        aliases:
+          - bodyweight-app
 
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    depends_on:
-      - app
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Certificates and ACME account; must survive container rebuilds.
-      - caddy-data:/data
-      - caddy-config:/config
-
-volumes:
-  caddy-data:
-  caddy-config:
+networks:
+  proxy:
+    external: true
