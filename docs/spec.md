@@ -147,6 +147,7 @@
 - Бэкенд и CLI: Rust, axum.
 - Хранилище: YDB. В продакшене — Serverless YDB (Yandex Cloud), в тестах и разработке — YDB в docker-контейнере.
 - Фронтенд: TypeScript, React, Vite. Собранная SPA раздаётся сервером.
+- Интерфейс собирается из компонентов [shadcn/ui](https://ui.shadcn.com) на Base UI со стилями Tailwind CSS. Исходники компонентов лежат в `web/src/components/ui` и добавляются командой `npx shadcn@latest add <component>` из `web/`. Тема только тёмная, палитра задана в `web/src/styles.css`.
 - Один docker-образ: axum раздаёт SPA и API под `/api`.
 
 ### 6.1 Структура репозитория

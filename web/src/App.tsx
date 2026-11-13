@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
+import { cn } from "cn";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { fetchMe, signOut } from "./auth";
 import type { User } from "./auth";
 import { Landing } from "./Landing";
@@ -21,18 +24,27 @@ export function App() {
   }
 
   return (
-    <div className="page">
-      <header className="top">
-        <span className="logo">Bodyweight</span>
+    <div className="mx-auto max-w-[720px] px-5 pb-[env(safe-area-inset-bottom)]">
+      <header className="flex min-h-17 items-center justify-between gap-3 py-5">
+        <span className="text-lg font-bold tracking-wide text-primary">Bodyweight</span>
         {user && (
-          <div className="account">
-            <Avatar user={user} />
-            <span className="login" title={user.display_name}>
+          <div className="flex min-w-0 items-center gap-2 text-sm">
+            <Avatar className="size-7">
+              {user.avatar_url && <AvatarImage src={user.avatar_url} alt="" />}
+              <AvatarFallback className="bg-card font-semibold text-primary" aria-hidden="true">
+                {user.login.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="truncate" title={user.display_name}>
               {user.login}
             </span>
-            <button className="link" type="button" onClick={handleSignOut}>
+            <Button
+              variant="link"
+              className="px-0 pl-2 text-muted-foreground underline"
+              onClick={handleSignOut}
+            >
               Log out
-            </button>
+            </Button>
           </div>
         )}
       </header>
@@ -40,7 +52,7 @@ export function App() {
       {user === null && <Landing onSignIn={setUser} />}
       {user && <Screens onUnauthorized={handleUnauthorized} />}
 
-      <footer className="bottom">bodyweight.ru</footer>
+      <footer className="pt-6 pb-8 text-sm text-muted-foreground">bodyweight.ru</footer>
     </div>
   );
 }
@@ -49,8 +61,20 @@ export function App() {
 function Screens({ onUnauthorized }: { onUnauthorized: () => void }) {
   return (
     <>
-      <nav className="tabs">
-        <NavLink to="/weigh-ins">Weigh-ins</NavLink>
+      <nav className="flex gap-5 border-b">
+        <NavLink
+          to="/weigh-ins"
+          className={({ isActive }) =>
+            cn(
+              "-mb-px border-b-2 py-2.5",
+              isActive
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground",
+            )
+          }
+        >
+          Weigh-ins
+        </NavLink>
       </nav>
       <main>
         <Routes>
@@ -59,16 +83,5 @@ function Screens({ onUnauthorized }: { onUnauthorized: () => void }) {
         </Routes>
       </main>
     </>
-  );
-}
-
-function Avatar({ user }: { user: User }) {
-  if (user.avatar_url) {
-    return <img className="avatar" src={user.avatar_url} alt="" width={28} height={28} />;
-  }
-  return (
-    <span className="avatar placeholder" aria-hidden="true">
-      {user.login.charAt(0).toUpperCase()}
-    </span>
   );
 }

@@ -1,9 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ApiError, UnauthorizedError } from "./api";
 import { addDays, toIsoDate } from "./dates";
 import { fetchWeighIns, MAX_DAYS_AHEAD, normalizeBodyweight, putWeighIn } from "./weighIns";
 import type { WeighIn } from "./weighIns";
+
+/** Form fields tall enough for a thumb. */
+const FIELD = "h-11 px-3 tabular-nums";
 
 /** The Weigh-ins screen: add a weigh-in and see the list, newest first. */
 export function WeighInsScreen({ onUnauthorized }: { onUnauthorized: () => void }) {
@@ -44,23 +59,31 @@ export function WeighInsScreen({ onUnauthorized }: { onUnauthorized: () => void 
   const existing = weighIns?.find((w) => w.date === date);
 
   return (
-    <section className="weigh-ins">
-      <h1 className="screen-title">Weigh-ins</h1>
+    <section>
+      <h1 className="mt-6 mb-4 text-2xl font-bold">Weigh-ins</h1>
 
-      <form className="weigh-in-form" onSubmit={handleSubmit}>
-        <label>
-          <span>Date</span>
-          <input
+      <form className="grid grid-cols-2 gap-3" onSubmit={handleSubmit}>
+        <div className="grid min-w-0 gap-1.5">
+          <Label htmlFor="weigh-in-date" className="font-normal text-muted-foreground">
+            Date
+          </Label>
+          <Input
+            id="weigh-in-date"
+            className={FIELD}
             type="date"
             value={date}
             max={toIsoDate(addDays(new Date(), MAX_DAYS_AHEAD))}
             onChange={(e) => setDate(e.target.value)}
             required
           />
-        </label>
-        <label>
-          <span>Bodyweight, kg</span>
-          <input
+        </div>
+        <div className="grid min-w-0 gap-1.5">
+          <Label htmlFor="weigh-in-bodyweight" className="font-normal text-muted-foreground">
+            Bodyweight, kg
+          </Label>
+          <Input
+            id="weigh-in-bodyweight"
+            className={FIELD}
             value={bodyweight}
             onChange={(e) => setBodyweight(e.target.value)}
             inputMode="decimal"
@@ -68,40 +91,44 @@ export function WeighInsScreen({ onUnauthorized }: { onUnauthorized: () => void 
             placeholder={weighIns?.[0]?.bodyweight ?? "82.5"}
             required
           />
-        </label>
-        <button className="primary" type="submit" disabled={saving}>
+        </div>
+        <Button className="col-span-2 h-11 text-base font-semibold" type="submit" disabled={saving}>
           {saving ? "Saving…" : "Add"}
-        </button>
+        </Button>
       </form>
       {existing && (
-        <p className="hint">
+        <p className="mt-2.5 text-sm text-muted-foreground">
           Replaces {existing.bodyweight} kg on {existing.date}.
         </p>
       )}
       {error && (
-        <p className="hint error" role="alert">
+        <p className="mt-2.5 text-sm text-destructive" role="alert">
           {error}
         </p>
       )}
 
-      {weighIns?.length === 0 && <p className="empty">No weigh-ins yet.</p>}
+      {weighIns?.length === 0 && <p className="my-6 text-muted-foreground">No weigh-ins yet.</p>}
       {weighIns && weighIns.length > 0 && (
-        <table className="weigh-in-list">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th className="number">kg</th>
-            </tr>
-          </thead>
-          <tbody>
-            {weighIns.map((w) => (
-              <tr key={w.date}>
-                <td>{w.date}</td>
-                <td className="number">{w.bodyweight}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Card className="mt-6 py-0">
+          <Table className="text-base">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-3.5 text-muted-foreground">Date</TableHead>
+                <TableHead className="px-3.5 text-right text-muted-foreground">kg</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {weighIns.map((w) => (
+                <TableRow key={w.date} className="hover:bg-transparent">
+                  <TableCell className="px-3.5 py-3 tabular-nums">{w.date}</TableCell>
+                  <TableCell className="px-3.5 py-3 text-right tabular-nums">
+                    {w.bodyweight}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </section>
   );
