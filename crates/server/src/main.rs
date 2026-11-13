@@ -4,6 +4,7 @@
 #![recursion_limit = "256"]
 
 mod auth;
+mod exercises;
 #[cfg(test)]
 mod integration_tests;
 mod weigh_ins;
@@ -140,6 +141,7 @@ fn api(dev_login: bool) -> Router<AppState> {
         .route("/health", get(|| async { "ok" }))
         .merge(auth::routes(dev_login))
         .merge(weigh_ins::routes())
+        .merge(exercises::routes())
         .fallback(|| async { axum::http::StatusCode::NOT_FOUND })
 }
 

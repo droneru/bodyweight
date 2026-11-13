@@ -4,7 +4,7 @@
 #![recursion_limit = "256"]
 
 use anyhow::Context;
-use bodyweight_domain::{Bodyweight, WeighIn};
+use bodyweight_domain::{Bodyweight, StandardExercise, WeighIn};
 use bodyweight_storage::Storage;
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand};
@@ -30,6 +30,15 @@ enum Command {
     /// Weigh-ins: the user's bodyweight by date.
     #[command(subcommand)]
     WeighIns(WeighInsCommand),
+    /// Exercises: the standard ones and the user's custom exercises.
+    #[command(subcommand)]
+    Exercises(ExercisesCommand),
+}
+
+#[derive(Subcommand)]
+enum ExercisesCommand {
+    /// List the standard exercises and the user's custom exercises.
+    List,
 }
 
 #[derive(Subcommand)]
@@ -75,6 +84,17 @@ async fn main() -> anyhow::Result<()> {
                 .put_weigh_in(user, WeighIn { date, bodyweight })
                 .await?;
             println!("Saved weigh-in: {date}  {bodyweight} kg");
+        }
+        Command::Exercises(ExercisesCommand::List) => {
+            let custom = storage.list_custom_exercises(user).await?;
+            println!("{:<8}  NAME", "KIND");
+            for e in StandardExercise::ALL {
+                println!("{:<8}  {}", "standard", e.name());
+            }
+            for e in custom {
+                let archived = if e.archived { "  (archived)" } else { "" };
+                println!("{:<8}  {}{archived}", "custom", e.name);
+            }
         }
     }
     Ok(())

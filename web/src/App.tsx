@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
 import { cn } from "cn";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { fetchMe, signOut } from "./auth";
 import type { User } from "./auth";
 import { Landing } from "./Landing";
+import { MyExercisesScreen } from "./MyExercisesScreen";
 import { WeighInsScreen } from "./WeighInsScreen";
 
 /** The landing page for visitors, the app screens for a signed-in user. */
@@ -62,26 +64,35 @@ function Screens({ onUnauthorized }: { onUnauthorized: () => void }) {
   return (
     <>
       <nav className="flex gap-5 border-b">
-        <NavLink
-          to="/weigh-ins"
-          className={({ isActive }) =>
-            cn(
-              "-mb-px border-b-2 py-2.5",
-              isActive
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground",
-            )
-          }
-        >
-          Weigh-ins
-        </NavLink>
+        <ScreenLink to="/weigh-ins">Weigh-ins</ScreenLink>
+        <ScreenLink to="/exercises">My exercises</ScreenLink>
       </nav>
       <main>
         <Routes>
           <Route path="/weigh-ins" element={<WeighInsScreen onUnauthorized={onUnauthorized} />} />
+          <Route
+            path="/exercises"
+            element={<MyExercisesScreen onUnauthorized={onUnauthorized} />}
+          />
           <Route path="*" element={<Navigate to="/weigh-ins" replace />} />
         </Routes>
       </main>
     </>
+  );
+}
+
+function ScreenLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        cn(
+          "-mb-px border-b-2 py-2.5",
+          isActive ? "border-primary text-foreground" : "border-transparent text-muted-foreground",
+        )
+      }
+    >
+      {children}
+    </NavLink>
   );
 }

@@ -199,3 +199,192 @@ async fn invalid_weigh_ins_are_rejected() {
     }
     assert_eq!(app.weigh_ins(&cookie).await, json!([]));
 }
+
+impl TestApp {
+    async fn exercises(&self, cookie: &str) -> Value {
+        let (status, body) = self
+            .send(Method::GET, "/api/exercises", Some(cookie), None)
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        serde_json::from_str(&body).unwrap()
+    }
+
+    /// Creates a custom exercise and returns its id.
+    async fn create_exercise(&self, cookie: &str, name: &str) -> String {
+        let body = Some(json!({ "name": name }));
+        let (status, body) = self
+            .send(Method::POST, "/api/exercises", Some(cookie), body)
+            .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let created: Value = serde_json::from_str(&body).unwrap();
+        created["id"].as_str().unwrap().to_owned()
+    }
+
+    async fn patch_exercise(&self, cookie: &str, id: &str, body: Value) -> (StatusCode, String) {
+        let path = format!("/api/exercises/{id}");
+        self.send(Method::PATCH, &path, Some(cookie), Some(body))
+            .await
+    }
+
+    async fn delete_exercise(&self, cookie: &str, id: &str) -> StatusCode {
+        let path = format!("/api/exercises/{id}");
+        self.send(Method::DELETE, &path, Some(cookie), None).await.0
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn exercises_require_a_session() {
+    let app = TestApp::new().await;
+
+    let (status, _) = app.send(Method::GET, "/api/exercises", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let body = Some(json!({ "name": "Dips" }));
+    let (status, _) = app.send(Method::POST, "/api/exercises", None, body).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn a_new_user_has_only_the_standard_exercises() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+
+    assert_eq!(
+        app.exercises(&cookie).await,
+        json!({
+            "standard": [
+                { "id": "pull-ups", "name": "Pull-ups" },
+                { "id": "bench-press", "name": "Bench press" },
+                { "id": "squat", "name": "Squat" },
+                { "id": "deadlift", "name": "Deadlift" },
+            ],
+            "custom": [],
+        })
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn custom_exercises_are_created_renamed_archived_and_deleted() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+
+    let press = app.create_exercise(&cookie, "  overhead press ").await;
+    let dips = app.create_exercise(&cookie, "Dips").await;
+    assert_eq!(
+        app.exercises(&cookie).await["custom"],
+        json!([
+            { "id": dips, "name": "Dips", "archived": false },
+            { "id": press, "name": "overhead press", "archived": false },
+        ])
+    );
+
+    // Renaming keeps the archived flag, archiving keeps the name.
+    let (status, body) = app
+        .patch_exercise(&cookie, &press, json!({ "name": "Barbell press" }))
+        .await;
+    assert_eq!((status, body.as_str()), (StatusCode::NO_CONTENT, ""));
+    let (status, _) = app
+        .patch_exercise(&cookie, &dips, json!({ "archived": true }))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        app.exercises(&cookie).await["custom"],
+        json!([
+            { "id": press, "name": "Barbell press", "archived": false },
+            { "id": dips, "name": "Dips", "archived": true },
+        ])
+    );
+
+    let (status, _) = app
+        .patch_exercise(&cookie, &dips, json!({ "archived": false }))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(app.exercises(&cookie).await["custom"][1]["archived"], false);
+
+    assert_eq!(
+        app.delete_exercise(&cookie, &dips).await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        app.delete_exercise(&cookie, &dips).await,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        app.exercises(&cookie).await["custom"],
+        json!([{ "id": press, "name": "Barbell press", "archived": false }])
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn custom_exercises_are_private_to_the_user() {
+    let app = TestApp::new().await;
+    let (alice, bob) = (app.sign_in().await, app.sign_in().await);
+    let dips = app.create_exercise(&alice, "Dips").await;
+
+    assert_eq!(app.exercises(&bob).await["custom"], json!([]));
+    let (status, _) = app
+        .patch_exercise(&bob, &dips, json!({ "name": "Stolen" }))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        app.delete_exercise(&bob, &dips).await,
+        StatusCode::NOT_FOUND
+    );
+
+    assert_eq!(
+        app.exercises(&alice).await["custom"],
+        json!([{ "id": dips, "name": "Dips", "archived": false }])
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn invalid_custom_exercises_are_rejected() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+    let dips = app.create_exercise(&cookie, "Dips").await;
+
+    let too_long = "x".repeat(61);
+    let cases = [
+        ("  ", "exercise name must not be empty"),
+        (
+            too_long.as_str(),
+            "exercise name must be at most 60 characters",
+        ),
+        (
+            "Dips\nweighted",
+            "exercise name must be a single line of text",
+        ),
+    ];
+    for (name, message) in cases {
+        let body = Some(json!({ "name": name }));
+        let (status, body) = app
+            .send(Method::POST, "/api/exercises", Some(&cookie), body)
+            .await;
+        assert_eq!((status, body.as_str()), (StatusCode::BAD_REQUEST, message));
+
+        let (status, body) = app
+            .patch_exercise(&cookie, &dips, json!({ "name": name }))
+            .await;
+        assert_eq!((status, body.as_str()), (StatusCode::BAD_REQUEST, message));
+    }
+
+    // Standard exercises cannot be changed or deleted.
+    let (status, _) = app
+        .patch_exercise(&cookie, "squat", json!({ "name": "Squats" }))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        app.delete_exercise(&cookie, "squat").await,
+        StatusCode::NOT_FOUND
+    );
+
+    assert_eq!(
+        app.exercises(&cookie).await["custom"],
+        json!([{ "id": dips, "name": "Dips", "archived": false }])
+    );
+}

@@ -2,7 +2,9 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use bodyweight_domain::{Bodyweight, User, WeighIn};
+use bodyweight_domain::{
+    Bodyweight, CustomExercise, ExerciseName, ExerciseNameError, User, WeighIn,
+};
 use chrono::NaiveDate;
 use ydb::{Client, ClientBuilder, FromEnvCredentials, Value};
 
@@ -98,6 +100,114 @@ impl Storage {
             .idempotent(true)
             .await?;
         Ok(())
+    }
+
+    /// All custom exercises of the user, archived ones included, ordered by name.
+    pub async fn list_custom_exercises(&self, user_login: &str) -> Result<Vec<CustomExercise>> {
+        let result_set = self
+            .client
+            .query_client()
+            .query_result_set(
+                "DECLARE $user_login AS Utf8;
+                 SELECT id, name, archived FROM custom_exercises
+                 WHERE user_login = $user_login;",
+            )
+            .param("$user_login", user_login)
+            .idempotent(true)
+            .await?;
+
+        let mut exercises = result_set
+            .rows()
+            .map(|mut row| {
+                let name: String = row.remove_field_by_name("name")?.try_into()?;
+                Ok(CustomExercise {
+                    id: row.remove_field_by_name("id")?.try_into()?,
+                    name: name
+                        .parse()
+                        .map_err(|e: ExerciseNameError| StorageError::Corrupt {
+                            table: "custom_exercises",
+                            reason: e.to_string(),
+                        })?,
+                    archived: row.remove_field_by_name("archived")?.try_into()?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        exercises.sort_by_cached_key(|e| (e.name.as_str().to_lowercase(), e.id.clone()));
+        Ok(exercises)
+    }
+
+    /// Saves a new custom exercise. The caller picks an `id` that is unique for the user.
+    pub async fn create_custom_exercise(
+        &self,
+        user_login: &str,
+        exercise: &CustomExercise,
+    ) -> Result<()> {
+        self.client
+            .query_client()
+            .exec(
+                "DECLARE $user_login AS Utf8;
+                 DECLARE $id AS Utf8;
+                 DECLARE $name AS Utf8;
+                 DECLARE $archived AS Bool;
+                 UPSERT INTO custom_exercises (user_login, id, name, archived)
+                 VALUES ($user_login, $id, $name, $archived);",
+            )
+            .param("$user_login", user_login)
+            .param("$id", exercise.id.as_str())
+            .param("$name", exercise.name.as_str())
+            .param("$archived", exercise.archived)
+            .idempotent(true)
+            .await?;
+        Ok(())
+    }
+
+    /// Renames and/or (un)archives a custom exercise; `None` leaves the field as it is.
+    /// Returns false if the user has no such exercise.
+    pub async fn update_custom_exercise(
+        &self,
+        user_login: &str,
+        id: &str,
+        name: Option<&ExerciseName>,
+        archived: Option<bool>,
+    ) -> Result<bool> {
+        let result_set = self
+            .client
+            .query_client()
+            .query_result_set(
+                "DECLARE $user_login AS Utf8;
+                 DECLARE $id AS Utf8;
+                 DECLARE $name AS Utf8?;
+                 DECLARE $archived AS Bool?;
+                 UPDATE custom_exercises
+                 SET name = $name ?? name, archived = $archived ?? archived
+                 WHERE user_login = $user_login AND id = $id
+                 RETURNING id;",
+            )
+            .param("$user_login", user_login)
+            .param("$id", id)
+            .param("$name", name.map(|n| n.as_str().to_owned()))
+            .param("$archived", archived)
+            .idempotent(true)
+            .await?;
+        Ok(result_set.rows().next().is_some())
+    }
+
+    /// Deletes a custom exercise. Returns false if the user has no such exercise.
+    pub async fn delete_custom_exercise(&self, user_login: &str, id: &str) -> Result<bool> {
+        let result_set = self
+            .client
+            .query_client()
+            .query_result_set(
+                "DECLARE $user_login AS Utf8;
+                 DECLARE $id AS Utf8;
+                 DELETE FROM custom_exercises
+                 WHERE user_login = $user_login AND id = $id
+                 RETURNING id;",
+            )
+            .param("$user_login", user_login)
+            .param("$id", id)
+            .await?;
+        Ok(result_set.rows().next().is_some())
     }
 
     /// Creates the user or updates their profile. `yandex_uid` is absent for dev-login users.
