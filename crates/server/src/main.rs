@@ -4,6 +4,9 @@
 #![recursion_limit = "256"]
 
 mod auth;
+#[cfg(test)]
+mod integration_tests;
+mod weigh_ins;
 mod yandex;
 
 use std::net::SocketAddr;
@@ -136,6 +139,7 @@ fn api(dev_login: bool) -> Router<AppState> {
     Router::new()
         .route("/health", get(|| async { "ok" }))
         .merge(auth::routes(dev_login))
+        .merge(weigh_ins::routes())
         .fallback(|| async { axum::http::StatusCode::NOT_FOUND })
 }
 

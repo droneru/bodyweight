@@ -25,6 +25,9 @@ make dev-ydb                  # interactive YQL shell on the dev YDB
 make dev-ydb ARGS="sql -s 'SELECT * FROM weigh_ins'"
 
 make dev-down                 # stop, keep data; make dev-clean also deletes it
+
+make test                     # unit tests: Rust and the frontend (vitest)
+make integration-test         # API tests against a throwaway YDB in docker (port 2137)
 ```
 
 `make dev` signs users in without OAuth (`BODYWEIGHT_DEV_LOGIN=1`). To try the real

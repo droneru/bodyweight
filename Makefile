@@ -12,10 +12,17 @@ DEV_ENV := YDB_ENDPOINT=$(DEV_YDB_ENDPOINT) YDB_DATABASE=$(DEV_YDB_DATABASE) YDB
 GOOSE_IMAGE      := ghcr.io/kukymbr/goose-docker:latest
 GOOSE_YDB_PARAMS := go_query_mode=scripting&go_fake_tx=scripting&go_query_bind=declare,numeric
 
-.PHONY: help test lint cli web docker migrate deploy dev dev-db dev-env dev-ydb dev-down dev-clean
+# The throwaway YDB of `make integration-test`: the dev compose file as another project, on other ports.
+TEST_YDB_PORT := 2137
+TEST_ENV      := YDB_ENDPOINT=grpc://localhost:$(TEST_YDB_PORT) YDB_DATABASE=/local YDB_ANONYMOUS_CREDENTIALS=1
+COMPOSE_TEST  := YDB_GRPC_PORT=$(TEST_YDB_PORT) YDB_MON_PORT=8766 $(COMPOSE_DEV) -p bodyweight-test
+
+.PHONY: help test integration-test lint cli web docker migrate deploy dev dev-db dev-env dev-ydb dev-down dev-clean
 
 help:
 	@echo "make test       Rust unit tests"
+	@echo "make integration-test"
+	@echo "                Start a throwaway YDB in docker and run the integration tests against it"
 	@echo "make lint       cargo fmt --check and cargo clippy"
 	@echo "make cli        Build the CLI (release) into target/release/bodyweight"
 	@echo "make web        Build the SPA into web/dist"
@@ -31,6 +38,13 @@ help:
 
 test:
 	$(CARGO) test --workspace
+
+# The integration tests are the `#[ignore]`d ones. YDB is removed afterwards, also on failure.
+integration-test:
+	$(COMPOSE_TEST) up -d --wait ydb
+	@trap '$(COMPOSE_TEST) down --volumes' EXIT; \
+	$(COMPOSE_TEST) run --rm migrate && \
+	$(TEST_ENV) $(CARGO) test --workspace -- --ignored
 
 lint:
 	$(CARGO) fmt --all --check

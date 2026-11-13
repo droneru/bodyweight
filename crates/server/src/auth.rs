@@ -5,8 +5,9 @@
 
 use std::time::{Duration, SystemTime};
 
-use axum::extract::{Query, State};
+use axum::extract::{FromRequestParts, Query, State};
 use axum::http::StatusCode;
+use axum::http::request::Parts;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -62,6 +63,31 @@ impl From<User> for Me {
             avatar_url: user.avatar_id.as_deref().map(avatar_url),
             login: user.login,
             display_name: user.display_name,
+        }
+    }
+}
+
+/// The signed-in user of a request to the API; the request is rejected with 401 if there is none.
+///
+/// Does not extend the session: the SPA calls `GET /api/me` on every load, and that does.
+pub struct CurrentUser(pub User);
+
+impl FromRequestParts<AppState> for CurrentUser {
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Response> {
+        let jar = CookieJar::from_headers(&parts.headers);
+        let Some(cookie) = jar.get(SESSION_COOKIE) else {
+            return Err(StatusCode::UNAUTHORIZED.into_response());
+        };
+        let session = state
+            .storage
+            .find_session(&session_id(cookie.value()), SystemTime::now())
+            .await
+            .map_err(|e| ApiError::from(e).into_response())?;
+        match session {
+            Some(session) => Ok(Self(session.user)),
+            None => Err(StatusCode::UNAUTHORIZED.into_response()),
         }
     }
 }

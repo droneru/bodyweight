@@ -1,5 +1,8 @@
 # Local development environment: YDB with the schema from migrations/.
 # Used by `make dev`, `make dev-down` and `make dev-clean`.
+#
+# `make integration-test` runs a second, throwaway copy of it as the project `bodyweight-test`
+# on other ports (YDB_GRPC_PORT, YDB_MON_PORT), so it does not clash with the dev YDB.
 name: bodyweight-dev
 
 services:
@@ -9,9 +12,12 @@ services:
     # YDB discovery advertises the container hostname. "localhost" makes the
     # advertised endpoint reachable both from the host and from `migrate`.
     hostname: localhost
+    # The advertised endpoint includes the port, so YDB listens on the published one.
+    environment:
+      GRPC_PORT: ${YDB_GRPC_PORT:-2136}
     ports:
-      - "2136:2136"
-      - "8765:8765"
+      - "${YDB_GRPC_PORT:-2136}:${YDB_GRPC_PORT:-2136}"
+      - "${YDB_MON_PORT:-8765}:8765"
     # Certificates are generated on first start and must survive restarts with the data.
     volumes:
       - ydb-data:/ydb_data
@@ -26,14 +32,14 @@ services:
   migrate:
     image: ghcr.io/kukymbr/goose-docker:latest
     profiles: [tools]
-    # Shares the network namespace of ydb, so localhost:2136 is YDB.
+    # Shares the network namespace of ydb, so localhost is YDB.
     network_mode: service:ydb
     depends_on:
       ydb:
         condition: service_healthy
     environment:
       GOOSE_DRIVER: ydb
-      GOOSE_DBSTRING: grpc://localhost:2136/local?go_query_mode=scripting&go_fake_tx=scripting&go_query_bind=declare,numeric
+      GOOSE_DBSTRING: grpc://localhost:${YDB_GRPC_PORT:-2136}/local?go_query_mode=scripting&go_fake_tx=scripting&go_query_bind=declare,numeric
       GOOSE_COMMAND: up
     volumes:
       - ../migrations:/migrations:ro
