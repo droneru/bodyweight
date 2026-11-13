@@ -12,19 +12,19 @@ What is left to implement from [docs/spec.md](docs/spec.md), in the intended ord
 
 ## 2. Workouts (§1.1–1.3)
 
-- [ ] Domain model: workout, exercise entry, set (reps ≥ 1, weight in steps of 0.25, no future dates)
-- [ ] Migrations and storage for workouts, exercise entries and sets
-- [ ] Workouts API
-- [ ] Refuse to delete a custom exercise that is used in a workout (§1.4)
-- [ ] Workouts screen: list, newest first, with date, exercises and the start of the note
-- [ ] Workout screen: view and edit date, note, exercise entries and sets
+- [x] Domain model: workout, exercise entry, set (reps ≥ 1, weight in steps of 0.25, date at most 2 days ahead)
+- [x] Migrations and storage for workouts, exercise entries and sets
+- [x] Workouts API
+- [x] Refuse to delete a custom exercise that is used in a workout (§1.4)
+- [x] Workouts screen: list, newest first, with date, exercises and the start of the note
+- [x] Workout screen: view and edit date, note, exercise entries and sets
 
 ## 3. Adding an exercise and saving (§4.2–4.3)
 
 - [ ] Suggested sets from the last exercise entry of the same exercise, with a "done" mark
 - [ ] Only marked sets are saved; one empty set row if the exercise was never done
 - [ ] "Repeat set" button
-- [ ] Autosave: the workout is created at once, every change goes to the server
+- [x] Autosave: the workout is created at once, every change goes to the server
 - [ ] Offline queue in localStorage, "not saved" status and retries
 
 ## 4. Bodyweight ratio (§1.6)

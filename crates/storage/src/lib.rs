@@ -3,10 +3,11 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bodyweight_domain::{
-    Bodyweight, CustomExercise, ExerciseName, ExerciseNameError, User, WeighIn,
+    Bodyweight, CustomExercise, ExerciseEntry, ExerciseId, ExerciseName, ExerciseNameError, Reps,
+    Set, User, WeighIn, Weight, Workout, WorkoutId,
 };
 use chrono::NaiveDate;
-use ydb::{Client, ClientBuilder, FromEnvCredentials, Value};
+use ydb::{Client, ClientBuilder, FromEnvCredentials, ResultSet, TxMode, Value};
 
 const SECONDS_PER_DAY: u64 = 86_400;
 
@@ -26,6 +27,15 @@ pub type Result<T> = std::result::Result<T, StorageError>;
 
 pub struct Storage {
     client: Client,
+}
+
+/// What `Storage::delete_custom_exercise` did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeleteExercise {
+    Deleted,
+    /// Nothing was deleted: the exercise is used in a workout.
+    InUse,
+    NotFound,
 }
 
 /// A signed-in user's session, see `Storage::find_session`.
@@ -71,7 +81,7 @@ impl Storage {
                 let date: SystemTime = row.remove_field_by_name("date")?.try_into()?;
                 let tenths: u32 = row.remove_field_by_name("bodyweight_tenths")?.try_into()?;
                 Ok(WeighIn {
-                    date: date_from_ydb(date)?,
+                    date: date_from_ydb(date, "weigh_ins")?,
                     bodyweight: Bodyweight::from_tenths(tenths).map_err(|e| {
                         StorageError::Corrupt {
                             table: "weigh_ins",
@@ -192,20 +202,171 @@ impl Storage {
         Ok(result_set.rows().next().is_some())
     }
 
-    /// Deletes a custom exercise. Returns false if the user has no such exercise.
-    pub async fn delete_custom_exercise(&self, user_login: &str, id: &str) -> Result<bool> {
+    /// Deletes a custom exercise, unless it is used in a workout.
+    pub async fn delete_custom_exercise(
+        &self,
+        user_login: &str,
+        id: &str,
+    ) -> Result<DeleteExercise> {
+        // The check and the delete are one query, so a workout cannot start using the
+        // exercise in between.
         let result_set = self
             .client
             .query_client()
             .query_result_set(
                 "DECLARE $user_login AS Utf8;
                  DECLARE $id AS Utf8;
+                 $uses = (
+                     SELECT COUNT(*) FROM exercise_entries
+                     WHERE user_login = $user_login AND exercise_id = $id
+                 );
                  DELETE FROM custom_exercises
-                 WHERE user_login = $user_login AND id = $id
+                 WHERE user_login = $user_login AND id = $id AND $uses = 0
                  RETURNING id;",
             )
             .param("$user_login", user_login)
             .param("$id", id)
+            .with_tx_mode(TxMode::SerializableReadWrite)
+            .await?;
+        if result_set.rows().next().is_some() {
+            return Ok(DeleteExercise::Deleted);
+        }
+        let exists = self
+            .list_custom_exercises(user_login)
+            .await?
+            .iter()
+            .any(|e| e.id == id);
+        Ok(if exists {
+            DeleteExercise::InUse
+        } else {
+            DeleteExercise::NotFound
+        })
+    }
+
+    /// All workouts of the user with their exercise entries and sets, newest first:
+    /// by date, then by creation time.
+    pub async fn list_workouts(&self, user_login: &str) -> Result<Vec<Workout>> {
+        let result_set = self
+            .client
+            .query_client()
+            .query_result_set(workout_rows_query(false))
+            .param("$user_login", user_login)
+            .idempotent(true)
+            .await?;
+        workouts_from_rows(result_set)
+    }
+
+    pub async fn get_workout(&self, user_login: &str, id: &WorkoutId) -> Result<Option<Workout>> {
+        let result_set = self
+            .client
+            .query_client()
+            .query_result_set(workout_rows_query(true))
+            .param("$user_login", user_login)
+            .param("$id", id.as_str())
+            .idempotent(true)
+            .await?;
+        Ok(workouts_from_rows(result_set)?.pop())
+    }
+
+    /// Creates the workout or replaces the one with the same id, including its exercise
+    /// entries and sets. `now` becomes the creation time of a new workout.
+    pub async fn put_workout(
+        &self,
+        user_login: &str,
+        workout: &Workout,
+        now: SystemTime,
+    ) -> Result<()> {
+        let field = |name: &str, value: Value| (name.to_owned(), value);
+        let position = |index: usize| Value::Uint32(u32::try_from(index).expect("few items"));
+
+        let mut entries = Vec::new();
+        let mut sets = Vec::new();
+        for (entry_index, entry) in workout.entries.iter().enumerate() {
+            entries.push(Value::struct_from_fields(vec![
+                field("position", position(entry_index)),
+                field("exercise_id", entry.exercise.as_str().into()),
+            ]));
+            for (set_index, set) in entry.sets.iter().enumerate() {
+                sets.push(Value::struct_from_fields(vec![
+                    field("entry_position", position(entry_index)),
+                    field("position", position(set_index)),
+                    field("reps", set.reps.get().into()),
+                    field("weight_quarters", set.weight.map(Weight::quarters).into()),
+                ]));
+            }
+        }
+        // The item type of the lists, needed when they are empty.
+        let entry_type = Value::struct_from_fields(vec![
+            field("position", 0u32.into()),
+            field("exercise_id", "".into()),
+        ]);
+        let set_type = Value::struct_from_fields(vec![
+            field("entry_position", 0u32.into()),
+            field("position", 0u32.into()),
+            field("reps", 0u32.into()),
+            field("weight_quarters", None::<u32>.into()),
+        ]);
+
+        self.client
+            .query_client()
+            .exec(
+                "DECLARE $user_login AS Utf8;
+                 DECLARE $id AS Utf8;
+                 DECLARE $date AS Date;
+                 DECLARE $note AS Utf8;
+                 DECLARE $now AS Timestamp;
+                 DECLARE $entries AS List<Struct<position: Uint32, exercise_id: Utf8>>;
+                 DECLARE $sets AS List<Struct<
+                     entry_position: Uint32, position: Uint32, reps: Uint32, weight_quarters: Uint32?
+                 >>;
+
+                 $created_at = (
+                     SELECT created_at FROM workouts WHERE user_login = $user_login AND id = $id
+                 );
+                 UPSERT INTO workouts (user_login, id, date, note, created_at)
+                 VALUES ($user_login, $id, $date, $note, $created_at ?? $now);
+
+                 DELETE FROM exercise_entries WHERE user_login = $user_login AND workout_id = $id;
+                 DELETE FROM sets WHERE user_login = $user_login AND workout_id = $id;
+
+                 UPSERT INTO exercise_entries
+                 SELECT $user_login AS user_login, $id AS workout_id, position, exercise_id
+                 FROM AS_TABLE($entries);
+                 UPSERT INTO sets
+                 SELECT $user_login AS user_login, $id AS workout_id,
+                        entry_position, position, reps, weight_quarters
+                 FROM AS_TABLE($sets);",
+            )
+            .param("$user_login", user_login)
+            .param("$id", workout.id.as_str())
+            .param("$date", date_to_ydb(workout.date)?)
+            .param("$note", workout.note.as_str())
+            .param("$now", Value::Timestamp(now))
+            .param("$entries", Value::list_from(entry_type, entries)?)
+            .param("$sets", Value::list_from(set_type, sets)?)
+            .with_tx_mode(TxMode::SerializableReadWrite)
+            .idempotent(true)
+            .await?;
+        Ok(())
+    }
+
+    /// Deletes a workout with its exercise entries and sets. Returns false if the user has
+    /// no such workout.
+    pub async fn delete_workout(&self, user_login: &str, id: &WorkoutId) -> Result<bool> {
+        let result_set = self
+            .client
+            .query_client()
+            .query_result_set(
+                "DECLARE $user_login AS Utf8;
+                 DECLARE $id AS Utf8;
+                 DELETE FROM sets WHERE user_login = $user_login AND workout_id = $id;
+                 DELETE FROM exercise_entries WHERE user_login = $user_login AND workout_id = $id;
+                 DELETE FROM workouts WHERE user_login = $user_login AND id = $id
+                 RETURNING id;",
+            )
+            .param("$user_login", user_login)
+            .param("$id", id.as_str())
+            .with_tx_mode(TxMode::SerializableReadWrite)
             .await?;
         Ok(result_set.rows().next().is_some())
     }
@@ -321,6 +482,86 @@ impl Storage {
     }
 }
 
+/// Selects workouts joined with their exercise entries and sets: a row per set, or a single
+/// row with NULLs for a workout without entries or an entry without sets.
+fn workout_rows_query(by_id: bool) -> String {
+    let (declare_id, filter) = if by_id {
+        ("DECLARE $id AS Utf8;", "AND w.id = $id")
+    } else {
+        ("", "")
+    };
+    format!(
+        "DECLARE $user_login AS Utf8;
+         {declare_id}
+         SELECT w.id AS id, w.date AS date, w.note AS note, w.created_at AS created_at,
+                e.position AS entry_position, e.exercise_id AS exercise_id,
+                s.position AS set_position, s.reps AS reps, s.weight_quarters AS weight_quarters
+         FROM workouts AS w
+         LEFT JOIN exercise_entries AS e
+             ON e.user_login = w.user_login AND e.workout_id = w.id
+         LEFT JOIN sets AS s
+             ON s.user_login = e.user_login AND s.workout_id = e.workout_id
+                AND s.entry_position = e.position
+         WHERE w.user_login = $user_login {filter}
+         ORDER BY date DESC, created_at DESC, id, entry_position, set_position;"
+    )
+}
+
+/// Groups the rows of `workout_rows_query` back into workouts, keeping their order.
+fn workouts_from_rows(result_set: ResultSet) -> Result<Vec<Workout>> {
+    fn corrupt(table: &'static str, error: impl ToString) -> StorageError {
+        StorageError::Corrupt {
+            table,
+            reason: error.to_string(),
+        }
+    }
+
+    let mut workouts: Vec<Workout> = Vec::new();
+    // The position of the last entry of the last workout.
+    let mut last_entry = None;
+    for mut row in result_set.rows() {
+        let id: String = row.remove_field_by_name("id")?.try_into()?;
+        if workouts.last().is_none_or(|w| w.id.as_str() != id) {
+            let date: SystemTime = row.remove_field_by_name("date")?.try_into()?;
+            workouts.push(Workout {
+                id: id.parse().map_err(|e| corrupt("workouts", e))?,
+                date: date_from_ydb(date, "workouts")?,
+                note: row.remove_field_by_name("note")?.try_into()?,
+                entries: Vec::new(),
+            });
+            last_entry = None;
+        }
+        let workout = workouts.last_mut().expect("just pushed");
+
+        let entry_position: Option<u32> = row.remove_field_by_name("entry_position")?.try_into()?;
+        if entry_position.is_none() {
+            continue;
+        }
+        if entry_position != last_entry {
+            let exercise_id: Option<String> =
+                row.remove_field_by_name("exercise_id")?.try_into()?;
+            workout.entries.push(ExerciseEntry {
+                exercise: ExerciseId::parse(&exercise_id.unwrap_or_default()),
+                sets: Vec::new(),
+            });
+            last_entry = entry_position;
+        }
+
+        let reps: Option<u32> = row.remove_field_by_name("reps")?.try_into()?;
+        let Some(reps) = reps else { continue };
+        let weight: Option<u32> = row.remove_field_by_name("weight_quarters")?.try_into()?;
+        let entry = workout.entries.last_mut().expect("just pushed");
+        entry.sets.push(Set {
+            reps: Reps::new(reps).map_err(|e| corrupt("sets", e))?,
+            weight: weight
+                .map(Weight::from_quarters)
+                .transpose()
+                .map_err(|e| corrupt("sets", e))?,
+        });
+    }
+    Ok(workouts)
+}
+
 fn env(name: &'static str) -> Result<String> {
     std::env::var(name).map_err(|_| StorageError::MissingEnv(name))
 }
@@ -337,11 +578,8 @@ fn date_to_ydb(date: NaiveDate) -> Result<Value> {
     ))
 }
 
-fn date_from_ydb(time: SystemTime) -> Result<NaiveDate> {
-    let corrupt = |reason: String| StorageError::Corrupt {
-        table: "weigh_ins",
-        reason,
-    };
+fn date_from_ydb(time: SystemTime, table: &'static str) -> Result<NaiveDate> {
+    let corrupt = |reason: String| StorageError::Corrupt { table, reason };
     let secs = time
         .duration_since(UNIX_EPOCH)
         .map_err(|e| corrupt(e.to_string()))?
@@ -365,7 +603,7 @@ mod tests {
             let Value::Date(time) = date_to_ydb(date).unwrap() else {
                 unreachable!()
             };
-            assert_eq!(date_from_ydb(time).unwrap(), date);
+            assert_eq!(date_from_ydb(time, "weigh_ins").unwrap(), date);
         }
     }
 

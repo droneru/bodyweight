@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch};
 use axum::{Json, Router};
 use bodyweight_domain::{CustomExercise, ExerciseName, StandardExercise};
+use bodyweight_storage::DeleteExercise;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::CurrentUser;
@@ -123,18 +124,25 @@ async fn update(
     Ok(no_content_if(found))
 }
 
-/// Deletes a custom exercise.
-// Once workouts exist, an exercise used in one must be refused here, see docs/spec.md §1.4.
+/// Deletes a custom exercise, unless it is used in a workout.
 async fn delete(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
-    let found = state
+    let outcome = state
         .storage
         .delete_custom_exercise(&user.login, &id)
         .await?;
-    Ok(no_content_if(found))
+    Ok(match outcome {
+        DeleteExercise::Deleted => StatusCode::NO_CONTENT.into_response(),
+        DeleteExercise::InUse => (
+            StatusCode::CONFLICT,
+            "exercise is used in a workout, archive it instead",
+        )
+            .into_response(),
+        DeleteExercise::NotFound => StatusCode::NOT_FOUND.into_response(),
+    })
 }
 
 fn bad_request(message: String) -> Response {

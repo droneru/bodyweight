@@ -9,6 +9,8 @@ import type { User } from "./auth";
 import { Landing } from "./Landing";
 import { MyExercisesScreen } from "./MyExercisesScreen";
 import { WeighInsScreen } from "./WeighInsScreen";
+import { WorkoutScreen } from "./WorkoutScreen";
+import { WorkoutsScreen } from "./WorkoutsScreen";
 
 /** The landing page for visitors, the app screens for a signed-in user. */
 export function App() {
@@ -64,17 +66,20 @@ function Screens({ onUnauthorized }: { onUnauthorized: () => void }) {
   return (
     <>
       <nav className="flex gap-5 border-b">
+        <ScreenLink to="/workouts">Workouts</ScreenLink>
         <ScreenLink to="/weigh-ins">Weigh-ins</ScreenLink>
         <ScreenLink to="/exercises">My exercises</ScreenLink>
       </nav>
       <main>
         <Routes>
+          <Route path="/workouts" element={<WorkoutsScreen onUnauthorized={onUnauthorized} />} />
+          <Route path="/workouts/:id" element={<WorkoutScreen onUnauthorized={onUnauthorized} />} />
           <Route path="/weigh-ins" element={<WeighInsScreen onUnauthorized={onUnauthorized} />} />
           <Route
             path="/exercises"
             element={<MyExercisesScreen onUnauthorized={onUnauthorized} />}
           />
-          <Route path="*" element={<Navigate to="/weigh-ins" replace />} />
+          <Route path="*" element={<Navigate to="/workouts" replace />} />
         </Routes>
       </main>
     </>

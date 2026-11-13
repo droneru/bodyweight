@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError, UnauthorizedError } from "./api";
+import { errorMessage, UnauthorizedError } from "./api";
 import { addDays, toIsoDate } from "./dates";
 import { fetchWeighIns, MAX_DAYS_AHEAD, normalizeBodyweight, putWeighIn } from "./weighIns";
 import type { WeighIn } from "./weighIns";
@@ -32,7 +32,7 @@ export function WeighInsScreen({ onUnauthorized }: { onUnauthorized: () => void 
   const fail = useCallback(
     (e: unknown, fallback: string) => {
       if (e instanceof UnauthorizedError) onUnauthorized();
-      else setError(e instanceof ApiError && e.status === 400 ? capitalize(e.message) : fallback);
+      else setError(errorMessage(e, fallback));
     },
     [onUnauthorized],
   );
@@ -132,8 +132,4 @@ export function WeighInsScreen({ onUnauthorized }: { onUnauthorized: () => void 
       )}
     </section>
   );
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }

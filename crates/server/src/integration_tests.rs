@@ -388,3 +388,369 @@ async fn invalid_custom_exercises_are_rejected() {
         json!([{ "id": dips, "name": "Dips", "archived": false }])
     );
 }
+
+const WORKOUT_A: &str = "000000000000000000000000000000aa";
+const WORKOUT_B: &str = "000000000000000000000000000000bb";
+const WORKOUT_C: &str = "000000000000000000000000000000cc";
+
+impl TestApp {
+    async fn put_workout(&self, cookie: &str, id: &str, body: Value) -> (StatusCode, String) {
+        let path = format!("/api/workouts/{id}");
+        self.send(Method::PUT, &path, Some(cookie), Some(body))
+            .await
+    }
+
+    /// The workout, or `None` if there is no such workout.
+    async fn workout(&self, cookie: &str, id: &str) -> Option<Value> {
+        let path = format!("/api/workouts/{id}");
+        let (status, body) = self.send(Method::GET, &path, Some(cookie), None).await;
+        if status == StatusCode::NOT_FOUND {
+            return None;
+        }
+        assert_eq!(status, StatusCode::OK);
+        Some(serde_json::from_str(&body).unwrap())
+    }
+
+    async fn workouts(&self, cookie: &str) -> Value {
+        let (status, body) = self
+            .send(Method::GET, "/api/workouts", Some(cookie), None)
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        serde_json::from_str(&body).unwrap()
+    }
+
+    async fn delete_workout(&self, cookie: &str, id: &str) -> StatusCode {
+        let path = format!("/api/workouts/{id}");
+        self.send(Method::DELETE, &path, Some(cookie), None).await.0
+    }
+}
+
+fn empty_workout(date: &str) -> Value {
+    json!({ "date": date, "note": "", "entries": [] })
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn workouts_require_a_session() {
+    let app = TestApp::new().await;
+
+    let (status, _) = app.send(Method::GET, "/api/workouts", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let path = format!("/api/workouts/{WORKOUT_A}");
+    let body = Some(empty_workout("2026-11-01"));
+    let (status, _) = app.send(Method::PUT, &path, None, body).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn a_workout_is_saved_with_its_entries_and_sets_in_order() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+    let dips = app.create_exercise(&cookie, "Dips").await;
+    assert_eq!(app.workout(&cookie, WORKOUT_A).await, None);
+
+    // The example of docs/spec.md §1.3, plus a repeated exercise, a set without a weight
+    // and an entry without sets.
+    let body = json!({
+        "date": "2026-11-01",
+        "note": "  felt strong \n",
+        "entries": [
+            { "exercise_id": "bench-press", "sets": [{ "reps": 3, "weight": "72.50" }] },
+            { "exercise_id": "squat", "sets": [
+                { "reps": 5, "weight": "60" },
+                { "reps": 5, "weight": "70" },
+                { "reps": 5, "weight": "70" },
+                { "reps": 5, "weight": "70" },
+            ] },
+            { "exercise_id": dips, "sets": [
+                { "reps": 12, "weight": null },
+                { "reps": 8, "weight": "11.25" },
+            ] },
+            { "exercise_id": "pull-ups", "sets": [] },
+            { "exercise_id": "bench-press", "sets": [{ "reps": 10, "weight": "50" }] },
+        ],
+    });
+    let (status, text) = app.put_workout(&cookie, WORKOUT_A, body).await;
+    assert_eq!((status, text.as_str()), (StatusCode::NO_CONTENT, ""));
+
+    assert_eq!(
+        app.workout(&cookie, WORKOUT_A).await,
+        Some(json!({
+            "date": "2026-11-01",
+            "note": "felt strong",
+            "entries": [
+                { "exercise_id": "bench-press", "sets": [{ "reps": 3, "weight": "72.5" }] },
+                { "exercise_id": "squat", "sets": [
+                    { "reps": 5, "weight": "60" },
+                    { "reps": 5, "weight": "70" },
+                    { "reps": 5, "weight": "70" },
+                    { "reps": 5, "weight": "70" },
+                ] },
+                { "exercise_id": dips, "sets": [
+                    { "reps": 12, "weight": null },
+                    { "reps": 8, "weight": "11.25" },
+                ] },
+                { "exercise_id": "pull-ups", "sets": [] },
+                { "exercise_id": "bench-press", "sets": [{ "reps": 10, "weight": "50" }] },
+            ],
+        }))
+    );
+    assert_eq!(
+        app.workouts(&cookie).await,
+        json!([{
+            "id": WORKOUT_A,
+            "date": "2026-11-01",
+            "note": "felt strong",
+            "exercise_ids": ["bench-press", "squat", dips, "pull-ups"],
+        }])
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn saving_a_workout_again_replaces_it_as_a_whole() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+
+    let first = json!({
+        "date": "2026-11-01",
+        "note": "legs",
+        "entries": [
+            { "exercise_id": "squat", "sets": [
+                { "reps": 5, "weight": "60" },
+                { "reps": 5, "weight": "70" },
+            ] },
+            { "exercise_id": "deadlift", "sets": [{ "reps": 3, "weight": "100" }] },
+        ],
+    });
+    app.put_workout(&cookie, WORKOUT_A, first).await;
+
+    let second = json!({
+        "date": "2026-11-02",
+        "note": "",
+        "entries": [{ "exercise_id": "pull-ups", "sets": [{ "reps": 9, "weight": null }] }],
+    });
+    let (status, _) = app.put_workout(&cookie, WORKOUT_A, second.clone()).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(app.workout(&cookie, WORKOUT_A).await, Some(second));
+
+    let (status, _) = app
+        .put_workout(&cookie, WORKOUT_A, empty_workout("2026-11-02"))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        app.workout(&cookie, WORKOUT_A).await,
+        Some(empty_workout("2026-11-02"))
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn workouts_are_listed_newest_first() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+    assert_eq!(app.workouts(&cookie).await, json!([]));
+
+    // Two workouts on the same date: the one created later comes first.
+    for (id, date) in [
+        (WORKOUT_B, "2026-11-03"),
+        (WORKOUT_C, "2026-11-01"),
+        (WORKOUT_A, "2026-11-03"),
+    ] {
+        let (status, _) = app.put_workout(&cookie, id, empty_workout(date)).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+    }
+    let ids = |list: Value| -> Vec<String> {
+        let list = list.as_array().unwrap().iter();
+        list.map(|w| w["id"].as_str().unwrap().to_owned()).collect()
+    };
+    assert_eq!(
+        ids(app.workouts(&cookie).await),
+        [WORKOUT_A, WORKOUT_B, WORKOUT_C]
+    );
+
+    // Saving a workout again does not move it within its date.
+    app.put_workout(&cookie, WORKOUT_B, empty_workout("2026-11-03"))
+        .await;
+    assert_eq!(
+        ids(app.workouts(&cookie).await),
+        [WORKOUT_A, WORKOUT_B, WORKOUT_C]
+    );
+
+    assert_eq!(
+        app.delete_workout(&cookie, WORKOUT_A).await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        app.delete_workout(&cookie, WORKOUT_A).await,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(app.workout(&cookie, WORKOUT_A).await, None);
+    assert_eq!(ids(app.workouts(&cookie).await), [WORKOUT_B, WORKOUT_C]);
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn workouts_are_private_to_the_user() {
+    let app = TestApp::new().await;
+    let (alice, bob) = (app.sign_in().await, app.sign_in().await);
+    let dips = app.create_exercise(&alice, "Dips").await;
+
+    let squats = json!({
+        "date": "2026-11-01",
+        "note": "alice",
+        "entries": [{ "exercise_id": "squat", "sets": [{ "reps": 5, "weight": "60" }] }],
+    });
+    app.put_workout(&alice, WORKOUT_A, squats.clone()).await;
+
+    assert_eq!(app.workouts(&bob).await, json!([]));
+    assert_eq!(app.workout(&bob, WORKOUT_A).await, None);
+    assert_eq!(
+        app.delete_workout(&bob, WORKOUT_A).await,
+        StatusCode::NOT_FOUND
+    );
+
+    // The same id is another workout for another user, and custom exercises are not shared.
+    let (status, _) = app
+        .put_workout(&bob, WORKOUT_A, empty_workout("2026-11-02"))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let with_dips = json!({
+        "date": "2026-11-02",
+        "note": "",
+        "entries": [{ "exercise_id": dips, "sets": [] }],
+    });
+    let (status, text) = app.put_workout(&bob, WORKOUT_B, with_dips).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(text, format!("unknown exercise {dips:?}"));
+
+    assert_eq!(app.workout(&alice, WORKOUT_A).await, Some(squats));
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn invalid_workouts_are_rejected() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+
+    let with_set = |set: Value| {
+        json!({
+            "date": "2026-11-01",
+            "note": "",
+            "entries": [{ "exercise_id": "squat", "sets": [set] }],
+        })
+    };
+    let many_sets = vec![json!({ "reps": 1, "weight": null }); 51];
+    let many_entries = vec![json!({ "exercise_id": "squat", "sets": [] }); 51];
+    let cases = [
+        (
+            empty_workout("01.11.2026"),
+            "date must be in the YYYY-MM-DD format",
+        ),
+        (
+            empty_workout("2999-01-01"),
+            "date must be at most 2 days ahead of today",
+        ),
+        (empty_workout("1969-12-31"), "date is too far in the past"),
+        (
+            with_set(json!({ "reps": 0, "weight": null })),
+            "reps must be between 1 and 1000",
+        ),
+        (
+            with_set(json!({ "reps": 5, "weight": "70.1" })),
+            "weight step is 0.25 kg",
+        ),
+        (
+            with_set(json!({ "reps": 5, "weight": "0" })),
+            "weight must be greater than 0 and at most 1000 kg",
+        ),
+        (
+            with_set(json!({ "reps": 5, "weight": "70,5" })),
+            "weight must be a number of kilograms, e.g. 72.5",
+        ),
+        (
+            json!({ "date": "2026-11-01", "note": "x".repeat(2001), "entries": [] }),
+            "note must be at most 2000 characters",
+        ),
+        (
+            json!({ "date": "2026-11-01", "note": "", "entries": many_entries }),
+            "a workout can have at most 50 exercises",
+        ),
+        (
+            json!({
+                "date": "2026-11-01",
+                "note": "",
+                "entries": [{ "exercise_id": "squat", "sets": many_sets }],
+            }),
+            "an exercise can have at most 50 sets",
+        ),
+        (
+            json!({
+                "date": "2026-11-01",
+                "note": "",
+                "entries": [{ "exercise_id": "lunges", "sets": [] }],
+            }),
+            "unknown exercise \"lunges\"",
+        ),
+    ];
+    for (body, message) in cases {
+        let (status, text) = app.put_workout(&cookie, WORKOUT_A, body).await;
+        assert_eq!((status, text.as_str()), (StatusCode::BAD_REQUEST, message));
+    }
+
+    let (status, text) = app
+        .put_workout(&cookie, "not-an-id", empty_workout("2026-11-01"))
+        .await;
+    assert_eq!(
+        (status, text.as_str()),
+        (
+            StatusCode::BAD_REQUEST,
+            "workout id must be 32 lowercase hex digits"
+        )
+    );
+    assert_eq!(app.workout(&cookie, "not-an-id").await, None);
+    assert_eq!(app.workouts(&cookie).await, json!([]));
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn a_custom_exercise_used_in_a_workout_cannot_be_deleted() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+    let dips = app.create_exercise(&cookie, "Dips").await;
+
+    let with_dips = json!({
+        "date": "2026-11-01",
+        "note": "",
+        "entries": [{ "exercise_id": dips, "sets": [{ "reps": 10, "weight": null }] }],
+    });
+    app.put_workout(&cookie, WORKOUT_A, with_dips.clone()).await;
+
+    let path = format!("/api/exercises/{dips}");
+    let (status, text) = app.send(Method::DELETE, &path, Some(&cookie), None).await;
+    assert_eq!(
+        (status, text.as_str()),
+        (
+            StatusCode::CONFLICT,
+            "exercise is used in a workout, archive it instead"
+        )
+    );
+
+    // It can be archived, and stays in the workout.
+    let (status, _) = app
+        .patch_exercise(&cookie, &dips, json!({ "archived": true }))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(app.workout(&cookie, WORKOUT_A).await, Some(with_dips));
+
+    // Once no workout uses it, it can be deleted.
+    app.put_workout(&cookie, WORKOUT_A, empty_workout("2026-11-01"))
+        .await;
+    assert_eq!(
+        app.delete_exercise(&cookie, &dips).await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(app.exercises(&cookie).await["custom"], json!([]));
+}

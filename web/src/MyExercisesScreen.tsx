@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError, UnauthorizedError } from "./api";
+import { errorMessage, UnauthorizedError } from "./api";
 import {
   createExercise,
   deleteExercise,
@@ -30,7 +30,7 @@ export function MyExercisesScreen({ onUnauthorized }: { onUnauthorized: () => vo
   const fail = useCallback(
     (e: unknown, fallback: string) => {
       if (e instanceof UnauthorizedError) onUnauthorized();
-      else setError(e instanceof ApiError && e.status === 400 ? capitalize(e.message) : fallback);
+      else setError(errorMessage(e, fallback));
     },
     [onUnauthorized],
   );
@@ -227,8 +227,4 @@ function Action({
       {children}
     </Button>
   );
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }

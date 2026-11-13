@@ -4,10 +4,12 @@
 #![recursion_limit = "256"]
 
 mod auth;
+mod dates;
 mod exercises;
 #[cfg(test)]
 mod integration_tests;
 mod weigh_ins;
+mod workouts;
 mod yandex;
 
 use std::net::SocketAddr;
@@ -142,6 +144,7 @@ fn api(dev_login: bool) -> Router<AppState> {
         .merge(auth::routes(dev_login))
         .merge(weigh_ins::routes())
         .merge(exercises::routes())
+        .merge(workouts::routes())
         .fallback(|| async { axum::http::StatusCode::NOT_FOUND })
 }
 

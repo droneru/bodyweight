@@ -3,7 +3,12 @@
 mod exercise;
 mod user;
 mod weigh_in;
+mod workout;
 
 pub use exercise::{CustomExercise, ExerciseName, ExerciseNameError, StandardExercise};
 pub use user::User;
 pub use weigh_in::{Bodyweight, BodyweightError, WeighIn};
+pub use workout::{
+    ExerciseEntry, ExerciseId, Reps, RepsError, Set, Weight, WeightError, Workout, WorkoutError,
+    WorkoutId, WorkoutIdError,
+};
