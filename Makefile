@@ -20,7 +20,7 @@ COMPOSE_TEST  := YDB_GRPC_PORT=$(TEST_YDB_PORT) YDB_MON_PORT=8766 $(COMPOSE_DEV)
 .PHONY: help test integration-test lint cli web docker migrate deploy dev dev-db dev-env dev-ydb dev-down dev-clean
 
 help:
-	@echo "make test       Rust unit tests"
+	@echo "make test       Rust and frontend unit tests"
 	@echo "make integration-test"
 	@echo "                Start a throwaway YDB in docker and run the integration tests against it"
 	@echo "make lint       cargo fmt --check and cargo clippy"
@@ -36,8 +36,9 @@ help:
 	@echo "make dev-down   Stop the dev environment, keeping the data"
 	@echo "make dev-clean  Stop the dev environment and delete the data"
 
-test:
+test: web/node_modules
 	$(CARGO) test --workspace
+	$(NPM) --prefix web test
 
 # The integration tests are the `#[ignore]`d ones. YDB is removed afterwards, also on failure.
 integration-test:

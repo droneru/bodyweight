@@ -210,6 +210,93 @@ td {
   font-variant-numeric: tabular-nums;
 }
 
+.tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid #2a3039;
+}
+
+.tabs a {
+  padding: 10px 0;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.tabs a.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.screen-title {
+  font-size: 1.5rem;
+  margin: 24px 0 16px;
+}
+
+.weigh-in-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.weigh-in-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.weigh-in-form input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #2a3039;
+  border-radius: 10px;
+  /* 16px or more, so that iOS does not zoom in on focus. */
+  font: inherit;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  color: var(--text);
+  color-scheme: dark;
+}
+
+.primary {
+  grid-column: 1 / -1;
+  min-height: 46px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  background: var(--accent);
+  color: #1a1300;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hint.error {
+  color: #ff8a80;
+}
+
+.empty {
+  margin: 24px 0;
+  color: var(--muted);
+}
+
+.weigh-in-list {
+  margin-top: 24px;
+}
+
+.number {
+  text-align: right;
+}
+
 .bottom {
   padding: 24px 0 32px;
   color: var(--muted);
