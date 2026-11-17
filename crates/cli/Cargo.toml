@@ -16,4 +16,6 @@ bodyweight-storage.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
 clap.workspace = true
+hex = "0.4"
+rand = "0.9"
 tokio.workspace = true

@@ -23,7 +23,7 @@ help:
 	@echo "make test       Rust and frontend unit tests"
 	@echo "make integration-test"
 	@echo "                Start a throwaway YDB in docker and run the integration tests against it"
-	@echo "make lint       cargo fmt --check and cargo clippy"
+	@echo "make lint       cargo fmt --check, cargo clippy, oxlint and prettier --check"
 	@echo "make cli        Build the CLI (release) into target/release/bodyweight"
 	@echo "make web        Build the SPA into web/dist"
 	@echo "make docker     Build the web app docker image"
@@ -47,9 +47,10 @@ integration-test:
 	$(COMPOSE_TEST) run --rm migrate && \
 	$(TEST_ENV) $(CARGO) test --workspace -- --ignored
 
-lint:
+lint: web/node_modules
 	$(CARGO) fmt --all --check
 	$(CARGO) clippy --workspace --all-targets -- -D warnings
+	$(NPM) --prefix web run lint
 
 cli:
 	$(CARGO) build --release -p bodyweight-cli

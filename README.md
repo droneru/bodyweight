@@ -21,6 +21,12 @@ export BODYWEIGHT_USER=alice  # Yandex login to act on behalf of
 target/release/bodyweight weigh-ins add 82.5
 target/release/bodyweight weigh-ins list
 target/release/bodyweight exercises list
+target/release/bodyweight workouts add --note "legs"      # prints the workout id
+target/release/bodyweight workouts add-entry <id> squat 5@60 5@70 5@70
+target/release/bodyweight workouts add-entry <id> pull-ups 9 7
+target/release/bodyweight workouts list
+target/release/bodyweight workouts show <id>
+target/release/bodyweight prs
 
 make dev-ydb                  # interactive YQL shell on the dev YDB
 make dev-ydb ARGS="sql -s 'SELECT * FROM weigh_ins'"

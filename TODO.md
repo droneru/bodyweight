@@ -42,10 +42,10 @@ What is left to implement from [docs/spec.md](docs/spec.md), in the intended ord
 
 ## 6. CLI (§5)
 
-- [ ] Create a workout, add an exercise entry and sets
-- [ ] List workouts
+- [x] Create a workout, add an exercise entry and sets
+- [x] List workouts
 - [x] List exercises
-- [ ] Show current PRs
+- [x] Show current PRs
 
 ## 7. Tests (§7.1)
 
@@ -54,4 +54,4 @@ What is left to implement from [docs/spec.md](docs/spec.md), in the intended ord
 
 ## Gaps in what is already done
 
-- [ ] `make lint`: add eslint and prettier for the frontend (§7)
+- [x] `make lint`: add a linter (oxlint) and prettier for the frontend (§7)

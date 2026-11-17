@@ -10,15 +10,17 @@ export class Autosaver<T> {
   private latest: T | null = null;
   private running: Promise<void> | null = null;
   private paused = false;
+  private status: SaveStatus = "saved";
+  private error: unknown = null;
 
   /**
-   * `initial` is what is already saved. `onStatus` is told when a save starts, and how a
-   * flush ended; `error` is what a failed save threw.
+   * `initial` is what is already saved. `onChange` is told when there is something to save,
+   * and how a flush ended; `error` is what a failed save threw.
    */
   constructor(
     initial: T,
     private readonly save: (value: T) => Promise<void>,
-    private readonly onStatus: (status: SaveStatus, error: unknown) => void,
+    private readonly onChange: (status: SaveStatus, error: unknown) => void,
   ) {
     this.savedJson = JSON.stringify(initial);
   }
@@ -29,7 +31,10 @@ export class Autosaver<T> {
    */
   set(value: T | null): boolean {
     this.latest = value;
-    return this.isDirty();
+    const dirty = this.isDirty();
+    // Not saved from now on, even though the save itself starts with the next flush.
+    if (dirty) this.onStatus("saving", null);
+    return dirty;
   }
 
   /** Saves until the latest value is the saved one. Never rejects: see `onStatus`. */
@@ -52,6 +57,14 @@ export class Autosaver<T> {
   resume(): void {
     this.paused = false;
     void this.flush();
+  }
+
+  /** Tells about a status or an error that is not the one told last. */
+  private onStatus(status: SaveStatus, error: unknown): void {
+    if (status === this.status && error === this.error) return;
+    this.status = status;
+    this.error = error;
+    this.onChange(status, error);
   }
 
   private isDirty(): boolean {

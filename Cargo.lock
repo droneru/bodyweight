@@ -229,6 +229,8 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "clap",
+ "hex",
+ "rand 0.9.5",
  "tokio",
 ]
 

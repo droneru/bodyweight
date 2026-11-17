@@ -23,8 +23,6 @@ export function WorkoutsScreen({
   const [nameOf, setNameOf] = useState<(id: string) => string>(() => () => "");
   // How many workouts have changes that could not be sent to the server.
   const [unsaved, setUnsaved] = useState(0);
-  // Bumped to load the list again.
-  const [attempt, setAttempt] = useState(0);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -37,8 +35,8 @@ export function WorkoutsScreen({
     [onUnauthorized],
   );
 
-  useEffect(() => {
-    // Changes that did not get through earlier go first, so that the list has them.
+  // Changes that did not get through earlier go first, so that the list has them.
+  const load = useCallback(() => {
     flushUnsaved(login)
       .then((left) => {
         setUnsaved(left);
@@ -52,14 +50,14 @@ export function WorkoutsScreen({
         },
         (e: unknown) => fail(e, "Could not load workouts."),
       );
-  }, [login, attempt, fail]);
+  }, [login, fail]);
 
-  // Back online: time to send what is not saved.
+  // Loaded when the screen opens, and again once back online: time to send what is not saved.
   useEffect(() => {
-    const retry = () => setAttempt((n) => n + 1);
-    window.addEventListener("online", retry);
-    return () => window.removeEventListener("online", retry);
-  }, []);
+    load();
+    window.addEventListener("online", load);
+    return () => window.removeEventListener("online", load);
+  }, [load]);
 
   /** The workout is created at once, then opened for editing. */
   async function handleNew() {
@@ -96,7 +94,7 @@ export function WorkoutsScreen({
       {unsaved > 0 && (
         <p className="mb-4 text-sm text-destructive" role="status">
           {unsaved === 1 ? "A workout has" : `${unsaved} workouts have`} changes that are not saved.{" "}
-          <button type="button" className="underline" onClick={() => setAttempt((n) => n + 1)}>
+          <button type="button" className="underline" onClick={load}>
             Retry
           </button>
         </p>

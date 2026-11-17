@@ -68,8 +68,9 @@ export function MyExercisesScreen({ onUnauthorized }: { onUnauthorized: () => vo
   async function handleRename(event: FormEvent) {
     event.preventDefault();
     if (!renaming) return;
-    const { id, name } = renaming;
-    if (await change(() => updateExercise(id, { name }), "Could not rename the exercise.")) {
+    const { id, name: newName } = renaming;
+    const rename = () => updateExercise(id, { name: newName });
+    if (await change(rename, "Could not rename the exercise.")) {
       setRenaming(null);
     }
   }

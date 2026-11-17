@@ -108,11 +108,11 @@ test("only sets marked done are saved", () => {
     { reps: 3, weight: "70" },
     { reps: 3, weight: "70" },
   ]);
-  const draft: Draft = { date: "2026-11-01", note: "", entries: [newEntry("bench-press", sets)] };
-  expect(toWorkout(draft)?.entries).toEqual([{ exercise_id: "bench-press", sets: [] }]);
+  const edited: Draft = { date: "2026-11-01", note: "", entries: [newEntry("bench-press", sets)] };
+  expect(toWorkout(edited)?.entries).toEqual([{ exercise_id: "bench-press", sets: [] }]);
 
   sets[1] = { ...sets[1], done: true, reps: "4" };
-  expect(toWorkout(draft)?.entries).toEqual([
+  expect(toWorkout(edited)?.entries).toEqual([
     { exercise_id: "bench-press", sets: [{ reps: 4, weight: "70" }] },
   ]);
 });
@@ -121,8 +121,8 @@ test("a set that is not marked done does not have to be valid", () => {
   const unmarked = newSet("5", "70.1", false);
   expect(hasInvalidWeight(unmarked)).toBe(false);
   expect(hasInvalidWeight({ ...unmarked, done: true })).toBe(true);
-  const draft: Draft = { date: "2026-11-01", note: "", entries: [newEntry("squat", [unmarked])] };
-  expect(toWorkout(draft)?.entries).toEqual([{ exercise_id: "squat", sets: [] }]);
+  const edited: Draft = { date: "2026-11-01", note: "", entries: [newEntry("squat", [unmarked])] };
+  expect(toWorkout(edited)?.entries).toEqual([{ exercise_id: "squat", sets: [] }]);
 });
 
 test("repeat set copies the last set, to be marked done", () => {

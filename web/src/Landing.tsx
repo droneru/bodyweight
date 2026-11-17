@@ -60,8 +60,8 @@ export function Landing({ onSignIn }: { onSignIn: (user: User) => void }) {
           from last time are suggested — tick what you did, edit the rest.
         </Feature>
         <Feature title="PRs">
-          Pull-ups: max reps in one set. Bench press, squat and deadlift: estimated 1RM by the
-          Epley formula. Over the last 90 days and all time.
+          Pull-ups: max reps in one set. Bench press, squat and deadlift: estimated 1RM by the Epley
+          formula. Over the last 90 days and all time.
         </Feature>
         <Feature title="Weigh-ins">
           Track your bodyweight. Every weighted set shows its bodyweight ratio, e.g. bench press

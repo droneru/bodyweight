@@ -118,3 +118,19 @@ test("pause waits for the save under way and holds back the next ones", async ()
   saver.resume();
   expect(saved()).toEqual(["b", "c"]);
 });
+
+test("a value to save is reported as soon as it is set, each status once", async () => {
+  const { saver, saves, statuses } = setup();
+  saver.set("b");
+  saver.set("c");
+  expect(statuses).toEqual(["saving"]);
+  const flushed = saver.flush();
+  saves[0].finish();
+  await flushed;
+  expect(statuses).toEqual(["saving", "saved"]);
+
+  // Back at the saved value there is nothing to report.
+  saver.set("c");
+  await saver.flush();
+  expect(statuses).toEqual(["saving", "saved"]);
+});

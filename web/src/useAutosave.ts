@@ -50,6 +50,7 @@ export function useAutosave<T>(
   const saveRef = useRef(save);
   const storeRef = useRef(store);
   const [saver] = useState(
+    // oxlint-disable-next-line react/refs -- the refs are read when a save runs, not while rendering
     () =>
       new Autosaver<T>(
         initial,
@@ -67,9 +68,7 @@ export function useAutosave<T>(
   }, [save, store]);
 
   useEffect(() => {
-    const dirty = saver.set(value);
-    if (dirty) {
-      setState({ status: "saving", error: null });
+    if (saver.set(value)) {
       if (value !== null) storeRef.current?.put(value);
     } else if (value !== null) {
       // Back at the saved value: what was put aside is out of date.

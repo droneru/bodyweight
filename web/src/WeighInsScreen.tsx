@@ -25,6 +25,7 @@ export function WeighInsScreen({ onUnauthorized }: { onUnauthorized: () => void 
   // null: not loaded yet.
   const [weighIns, setWeighIns] = useState<WeighIn[] | null>(null);
   const [date, setDate] = useState(() => toIsoDate(new Date()));
+  const [maxDate] = useState(() => toIsoDate(addDays(new Date(), MAX_DAYS_AHEAD)));
   const [bodyweight, setBodyweight] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export function WeighInsScreen({ onUnauthorized }: { onUnauthorized: () => void 
             className={FIELD}
             type="date"
             value={date}
-            max={toIsoDate(addDays(new Date(), MAX_DAYS_AHEAD))}
+            max={maxDate}
             onChange={(e) => setDate(e.target.value)}
             required
           />

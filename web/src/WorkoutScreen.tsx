@@ -144,6 +144,7 @@ function WorkoutEditor({
   onUnauthorized: () => void;
 }) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial));
+  const [maxDate] = useState(() => toIsoDate(addDays(new Date(), MAX_DAYS_AHEAD)));
   // The exercise is being added: its suggested sets are on their way.
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -237,7 +238,7 @@ function WorkoutEditor({
             className={FIELD}
             type="date"
             value={draft.date}
-            max={toIsoDate(addDays(new Date(), MAX_DAYS_AHEAD))}
+            max={maxDate}
             onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))}
             aria-invalid={draft.date === ""}
             required

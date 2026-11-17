@@ -143,10 +143,10 @@
 - Пользователь задаётся env-переменной `BODYWEIGHT_USER` (Яндекс-логин).
 - Сообщения только на английском.
 - Функции такие же, как у веб-интерфейса:
-  - создать тренировку, добавить в неё выполнение упражнения и подходы;
-  - посмотреть список тренировок;
+  - создать тренировку (`bodyweight workouts add [--date YYYY-MM-DD] [--note TEXT]`), добавить в неё выполнение упражнения и подходы (`bodyweight workouts add-entry <id> squat 5@60 5@70`). Подход записывается как `ПОВТОРЫ@ВЕС` или просто `ПОВТОРЫ`, если веса нет. Упражнение задаётся идентификатором стандартного (`pull-ups`, `bench-press`, `squat`, `deadlift`) или названием, регистр не важен;
+  - посмотреть список тренировок (`bodyweight workouts list`) и одну тренировку с подходами и долей от веса тела (`bodyweight workouts show <id>`);
   - посмотреть список упражнений (`bodyweight exercises list`);
-  - посмотреть текущие рекорды;
+  - посмотреть текущие рекорды (`bodyweight prs`);
   - посмотреть список взвешиваний (`bodyweight weigh-ins list`) и добавить взвешивание (`bodyweight weigh-ins add 82.5 [--date YYYY-MM-DD]`). Дата по умолчанию — сегодняшняя в часовом поясе Europe/Moscow.
 - Предложенных подходов в CLI нет.
 
@@ -192,7 +192,7 @@ Makefile
 | `make dev-ydb` | Открывает ydb CLI на YDB из `make dev`: интерактивный YQL, либо команда из `ARGS` |
 | `make dev-down` | Останавливает dev-окружение, данные YDB сохраняются |
 | `make dev-clean` | Останавливает dev-окружение и удаляет данные YDB |
-| `make lint` | `cargo fmt --check`, `cargo clippy`, eslint, prettier |
+| `make lint` | `cargo fmt --check`, `cargo clippy`, oxlint, prettier. Вместо eslint используется oxlint: typescript-eslint не работает с TypeScript 7 |
 | `make deploy` | На VPS: `git pull && docker compose up -d --build` |
 
 ### 7.1 Тесты
