@@ -8,6 +8,7 @@ import { fetchMe, signOut } from "./auth";
 import type { User } from "./auth";
 import { Landing } from "./Landing";
 import { MyExercisesScreen } from "./MyExercisesScreen";
+import { PrsScreen } from "./PrsScreen";
 import { WeighInsScreen } from "./WeighInsScreen";
 import { WorkoutScreen } from "./WorkoutScreen";
 import { WorkoutsScreen } from "./WorkoutsScreen";
@@ -54,7 +55,7 @@ export function App() {
       </header>
 
       {user === null && <Landing onSignIn={setUser} />}
-      {user && <Screens onUnauthorized={handleUnauthorized} />}
+      {user && <Screens login={user.login} onUnauthorized={handleUnauthorized} />}
 
       <footer className="pt-6 pb-8 text-sm text-muted-foreground">bodyweight.ru</footer>
     </div>
@@ -62,18 +63,26 @@ export function App() {
 }
 
 /** The screens of a signed-in user. The other screens of docs/spec.md §4.1 come later. */
-function Screens({ onUnauthorized }: { onUnauthorized: () => void }) {
+function Screens({ login, onUnauthorized }: { login: string; onUnauthorized: () => void }) {
   return (
     <>
-      <nav className="flex gap-5 border-b">
+      <nav className="flex gap-5 overflow-x-auto overflow-y-hidden border-b whitespace-nowrap">
         <ScreenLink to="/workouts">Workouts</ScreenLink>
+        <ScreenLink to="/prs">PRs</ScreenLink>
         <ScreenLink to="/weigh-ins">Weigh-ins</ScreenLink>
         <ScreenLink to="/exercises">My exercises</ScreenLink>
       </nav>
       <main>
         <Routes>
-          <Route path="/workouts" element={<WorkoutsScreen onUnauthorized={onUnauthorized} />} />
-          <Route path="/workouts/:id" element={<WorkoutScreen onUnauthorized={onUnauthorized} />} />
+          <Route
+            path="/workouts"
+            element={<WorkoutsScreen login={login} onUnauthorized={onUnauthorized} />}
+          />
+          <Route
+            path="/workouts/:id"
+            element={<WorkoutScreen login={login} onUnauthorized={onUnauthorized} />}
+          />
+          <Route path="/prs" element={<PrsScreen onUnauthorized={onUnauthorized} />} />
           <Route path="/weigh-ins" element={<WeighInsScreen onUnauthorized={onUnauthorized} />} />
           <Route
             path="/exercises"
@@ -92,7 +101,7 @@ function ScreenLink({ to, children }: { to: string; children: ReactNode }) {
       to={to}
       className={({ isActive }) =>
         cn(
-          "-mb-px border-b-2 py-2.5",
+          "border-b-2 py-2.5",
           isActive ? "border-primary text-foreground" : "border-transparent text-muted-foreground",
         )
       }

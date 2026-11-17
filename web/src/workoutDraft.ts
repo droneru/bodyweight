@@ -1,4 +1,4 @@
-import type { Workout } from "./workouts";
+import type { Workout, WorkoutSet } from "./workouts";
 
 /** A workout as it is being edited: reps and weights are what the user typed so far. */
 export interface Draft {
@@ -20,6 +20,8 @@ export interface DraftSet {
   reps: string;
   /** Empty for a set done with bodyweight only. */
   weight: string;
+  /** The "done" mark. A row without it, such as an untouched suggested set, is not saved. */
+  done: boolean;
 }
 
 const MAX_REPS = 1000;
@@ -27,8 +29,21 @@ const MAX_WEIGHT = 1000;
 
 let lastKey = 0;
 
-export function newSet(reps = "", weight = ""): DraftSet {
-  return { key: ++lastKey, reps, weight };
+/** A row for the user to fill in; rows the app fills in start without the "done" mark. */
+export function newSet(reps = "", weight = "", done = true): DraftSet {
+  return { key: ++lastKey, reps, weight, done };
+}
+
+/** The suggested sets of an exercise last done with `last`, or one row to fill in. */
+export function suggestedSets(last: WorkoutSet[]): DraftSet[] {
+  if (last.length === 0) return [newSet()];
+  return last.map((set) => newSet(String(set.reps), set.weight ?? "", false));
+}
+
+/** The row "Repeat set" adds: a copy of the last set to mark done, or a row to fill in. */
+export function repeatedSet(sets: DraftSet[]): DraftSet {
+  const last = sets.at(-1);
+  return last && !isBlank(last) ? newSet(last.reps, last.weight, false) : newSet();
 }
 
 export function newEntry(exerciseId: string, sets: DraftSet[]): DraftEntry {
@@ -74,18 +89,23 @@ export function parseWeight(input: string): string | null | undefined {
   return text;
 }
 
+/** Whether the row is saved as a set: it has the "done" mark and is filled in. */
+function isSaved(set: DraftSet): boolean {
+  return set.done && !isBlank(set);
+}
+
 /** Whether a field of the set keeps the workout from being saved. */
 export function hasInvalidReps(set: DraftSet): boolean {
-  return !isBlank(set) && parseReps(set.reps) === null;
+  return isSaved(set) && parseReps(set.reps) === null;
 }
 
 export function hasInvalidWeight(set: DraftSet): boolean {
-  return parseWeight(set.weight) === undefined;
+  return isSaved(set) && parseWeight(set.weight) === undefined;
 }
 
 /**
  * The workout to save, or null if the draft cannot be saved as it is: it has no date, or
- * a set with invalid reps or weight. Blank rows are left out.
+ * a set with invalid reps or weight. Rows that are blank or not marked done are left out.
  */
 export function toWorkout(draft: Draft): Workout | null {
   if (draft.date === "") return null;
@@ -93,7 +113,7 @@ export function toWorkout(draft: Draft): Workout | null {
   for (const entry of draft.entries) {
     const sets = [];
     for (const set of entry.sets) {
-      if (isBlank(set)) continue;
+      if (!isSaved(set)) continue;
       const reps = parseReps(set.reps);
       const weight = parseWeight(set.weight);
       if (reps === null || weight === undefined) return null;

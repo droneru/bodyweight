@@ -21,24 +21,24 @@ What is left to implement from [docs/spec.md](docs/spec.md), in the intended ord
 
 ## 3. Adding an exercise and saving (§4.2–4.3)
 
-- [ ] Suggested sets from the last exercise entry of the same exercise, with a "done" mark
-- [ ] Only marked sets are saved; one empty set row if the exercise was never done
-- [ ] "Repeat set" button
+- [x] Suggested sets from the last exercise entry of the same exercise, with a "done" mark
+- [x] Only marked sets are saved; one empty set row if the exercise was never done
+- [x] "Repeat set" button
 - [x] Autosave: the workout is created at once, every change goes to the server
-- [ ] Offline queue in localStorage, "not saved" status and retries
+- [x] Offline queue in localStorage, "not saved" status and retries
 
 ## 4. Bodyweight ratio (§1.6)
 
-- [ ] Calculation in the domain: rounded down to tenths, bodyweight from the latest weigh-in on or before the workout date
-- [ ] Shown on sets with a weight on the Workout screen
+- [x] Calculation in the domain: rounded down to tenths, bodyweight from the latest weigh-in on or before the workout date
+- [x] Shown on sets with a weight on the Workout screen
 
 ## 5. PRs (§2)
 
-- [ ] Estimated 1RM by the Epley formula for the Big Three (sets with a weight and at most 12 reps)
-- [ ] Max reps for pull-ups (sets without a weight)
-- [ ] Periods: 90 days and all time, "today" in Europe/Moscow; ties go to the earliest set
-- [ ] PRs API
-- [ ] PRs screen: standard exercises × {90 days, All time}
+- [x] Estimated 1RM by the Epley formula for the Big Three (sets with a weight and at most 12 reps)
+- [x] Max reps for pull-ups (sets without a weight)
+- [x] Periods: 90 days and all time, "today" in Europe/Moscow; ties go to the earliest set
+- [x] PRs API
+- [x] PRs screen: standard exercises × {90 days, All time}
 
 ## 6. CLI (§5)
 
@@ -49,8 +49,8 @@ What is left to implement from [docs/spec.md](docs/spec.md), in the intended ord
 
 ## 7. Tests (§7.1)
 
-- [ ] Unit tests: PRs, estimated 1RM, bodyweight ratio, the 90-day window
-- [ ] Integration tests for the new storage and API
+- [x] Unit tests: PRs, estimated 1RM, bodyweight ratio, the 90-day window
+- [x] Integration tests for the new storage and API
 
 ## Gaps in what is already done
 

@@ -243,6 +243,61 @@ impl Storage {
         })
     }
 
+    /// The sets of the last exercise entry of the exercise: in the workout with the latest
+    /// date (the one created last, if there are several), the last such entry in it.
+    /// Entries without sets and the workout `except` are passed over. Empty if there is none.
+    pub async fn last_sets(
+        &self,
+        user_login: &str,
+        exercise_id: &str,
+        except: Option<&WorkoutId>,
+    ) -> Result<Vec<Set>> {
+        let result_set = self
+            .client
+            .query_client()
+            .query_result_set(
+                "DECLARE $user_login AS Utf8;
+                 DECLARE $exercise_id AS Utf8;
+                 DECLARE $except AS Utf8;
+                 $last = (
+                     SELECT e.workout_id AS workout_id, e.position AS entry_position,
+                            w.date AS date, w.created_at AS created_at
+                     FROM exercise_entries AS e
+                     INNER JOIN workouts AS w
+                         ON w.user_login = e.user_login AND w.id = e.workout_id
+                     LEFT SEMI JOIN sets AS s
+                         ON s.user_login = e.user_login AND s.workout_id = e.workout_id
+                            AND s.entry_position = e.position
+                     WHERE e.user_login = $user_login AND e.exercise_id = $exercise_id
+                           AND e.workout_id != $except
+                     ORDER BY date DESC, created_at DESC, entry_position DESC
+                     LIMIT 1
+                 );
+                 SELECT s.position AS position, s.reps AS reps,
+                        s.weight_quarters AS weight_quarters
+                 FROM sets AS s
+                 INNER JOIN $last AS l
+                     ON l.workout_id = s.workout_id AND l.entry_position = s.entry_position
+                 WHERE s.user_login = $user_login
+                 ORDER BY position;",
+            )
+            .param("$user_login", user_login)
+            .param("$exercise_id", exercise_id)
+            .param("$except", except.map_or("", WorkoutId::as_str))
+            .idempotent(true)
+            .await?;
+
+        result_set
+            .rows()
+            .map(|mut row| {
+                let reps: u32 = row.remove_field_by_name("reps")?.try_into()?;
+                let weight: Option<u32> =
+                    row.remove_field_by_name("weight_quarters")?.try_into()?;
+                set_from_ydb(reps, weight)
+            })
+            .collect()
+    }
+
     /// All workouts of the user with their exercise entries and sets, newest first:
     /// by date, then by creation time.
     pub async fn list_workouts(&self, user_login: &str) -> Result<Vec<Workout>> {
@@ -551,15 +606,23 @@ fn workouts_from_rows(result_set: ResultSet) -> Result<Vec<Workout>> {
         let Some(reps) = reps else { continue };
         let weight: Option<u32> = row.remove_field_by_name("weight_quarters")?.try_into()?;
         let entry = workout.entries.last_mut().expect("just pushed");
-        entry.sets.push(Set {
-            reps: Reps::new(reps).map_err(|e| corrupt("sets", e))?,
-            weight: weight
-                .map(Weight::from_quarters)
-                .transpose()
-                .map_err(|e| corrupt("sets", e))?,
-        });
+        entry.sets.push(set_from_ydb(reps, weight)?);
     }
     Ok(workouts)
+}
+
+fn set_from_ydb(reps: u32, weight_quarters: Option<u32>) -> Result<Set> {
+    let corrupt = |reason: String| StorageError::Corrupt {
+        table: "sets",
+        reason,
+    };
+    Ok(Set {
+        reps: Reps::new(reps).map_err(|e| corrupt(e.to_string()))?,
+        weight: weight_quarters
+            .map(Weight::from_quarters)
+            .transpose()
+            .map_err(|e| corrupt(e.to_string()))?,
+    })
 }
 
 fn env(name: &'static str) -> Result<String> {

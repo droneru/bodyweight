@@ -8,6 +8,7 @@ mod dates;
 mod exercises;
 #[cfg(test)]
 mod integration_tests;
+mod prs;
 mod weigh_ins;
 mod workouts;
 mod yandex;
@@ -145,6 +146,7 @@ fn api(dev_login: bool) -> Router<AppState> {
         .merge(weigh_ins::routes())
         .merge(exercises::routes())
         .merge(workouts::routes())
+        .merge(prs::routes())
         .fallback(|| async { axum::http::StatusCode::NOT_FOUND })
 }
 

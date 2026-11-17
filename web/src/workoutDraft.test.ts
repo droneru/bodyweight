@@ -1,5 +1,15 @@
 import { expect, test } from "vitest";
-import { newEntry, newSet, parseReps, parseWeight, toDraft, toWorkout } from "./workoutDraft";
+import {
+  hasInvalidWeight,
+  newEntry,
+  newSet,
+  parseReps,
+  parseWeight,
+  repeatedSet,
+  suggestedSets,
+  toDraft,
+  toWorkout,
+} from "./workoutDraft";
 import type { Draft } from "./workoutDraft";
 import type { Workout } from "./workouts";
 
@@ -73,4 +83,56 @@ test("a saved workout survives the round trip through a draft", () => {
     ],
   };
   expect(toWorkout(toDraft(workout))).toEqual(workout);
+});
+
+test("suggested sets copy the last entry and are not marked done", () => {
+  const sets = suggestedSets([
+    { reps: 3, weight: "70" },
+    { reps: 12, weight: null },
+  ]);
+  expect(sets.map(({ reps, weight, done }) => [reps, weight, done])).toEqual([
+    ["3", "70", false],
+    ["12", "", false],
+  ]);
+});
+
+test("an exercise never done before gets one row to fill in", () => {
+  expect(suggestedSets([]).map(({ reps, weight, done }) => [reps, weight, done])).toEqual([
+    ["", "", true],
+  ]);
+});
+
+test("only sets marked done are saved", () => {
+  const sets = suggestedSets([
+    { reps: 3, weight: "70" },
+    { reps: 3, weight: "70" },
+    { reps: 3, weight: "70" },
+  ]);
+  const draft: Draft = { date: "2026-11-01", note: "", entries: [newEntry("bench-press", sets)] };
+  expect(toWorkout(draft)?.entries).toEqual([{ exercise_id: "bench-press", sets: [] }]);
+
+  sets[1] = { ...sets[1], done: true, reps: "4" };
+  expect(toWorkout(draft)?.entries).toEqual([
+    { exercise_id: "bench-press", sets: [{ reps: 4, weight: "70" }] },
+  ]);
+});
+
+test("a set that is not marked done does not have to be valid", () => {
+  const unmarked = newSet("5", "70.1", false);
+  expect(hasInvalidWeight(unmarked)).toBe(false);
+  expect(hasInvalidWeight({ ...unmarked, done: true })).toBe(true);
+  const draft: Draft = { date: "2026-11-01", note: "", entries: [newEntry("squat", [unmarked])] };
+  expect(toWorkout(draft)?.entries).toEqual([{ exercise_id: "squat", sets: [] }]);
+});
+
+test("repeat set copies the last set, to be marked done", () => {
+  const copy = repeatedSet([newSet("5", "60"), newSet("3", "72,5")]);
+  expect([copy.reps, copy.weight, copy.done]).toEqual(["3", "72,5", false]);
+});
+
+test("repeat set after a blank row or no rows gives a row to fill in", () => {
+  for (const sets of [[], [newSet("5", "60"), newSet()]]) {
+    const row = repeatedSet(sets);
+    expect([row.reps, row.weight, row.done]).toEqual(["", "", true]);
+  }
 });

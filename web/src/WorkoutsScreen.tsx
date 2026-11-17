@@ -6,14 +6,25 @@ import { errorMessage, UnauthorizedError } from "./api";
 import { toIsoDate } from "./dates";
 import { exerciseNamer } from "./exerciseNames";
 import { fetchExercises } from "./exercises";
+import { flushUnsaved } from "./unsavedWorkouts";
 import { fetchWorkouts, newWorkoutId, putWorkout } from "./workouts";
 import type { WorkoutSummary } from "./workouts";
 
 /** The Workouts screen: the list of workouts, newest first, and starting a new one. */
-export function WorkoutsScreen({ onUnauthorized }: { onUnauthorized: () => void }) {
+export function WorkoutsScreen({
+  login,
+  onUnauthorized,
+}: {
+  login: string;
+  onUnauthorized: () => void;
+}) {
   // null: not loaded yet.
   const [workouts, setWorkouts] = useState<WorkoutSummary[] | null>(null);
   const [nameOf, setNameOf] = useState<(id: string) => string>(() => () => "");
+  // How many workouts have changes that could not be sent to the server.
+  const [unsaved, setUnsaved] = useState(0);
+  // Bumped to load the list again.
+  const [attempt, setAttempt] = useState(0);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -27,14 +38,28 @@ export function WorkoutsScreen({ onUnauthorized }: { onUnauthorized: () => void 
   );
 
   useEffect(() => {
-    Promise.all([fetchWorkouts(), fetchExercises()]).then(
-      ([list, exercises]) => {
-        setNameOf(() => exerciseNamer(exercises));
-        setWorkouts(list);
-      },
-      (e: unknown) => fail(e, "Could not load workouts."),
-    );
-  }, [fail]);
+    // Changes that did not get through earlier go first, so that the list has them.
+    flushUnsaved(login)
+      .then((left) => {
+        setUnsaved(left);
+        return Promise.all([fetchWorkouts(), fetchExercises()]);
+      })
+      .then(
+        ([list, exercises]) => {
+          setNameOf(() => exerciseNamer(exercises));
+          setWorkouts(list);
+          setError(null);
+        },
+        (e: unknown) => fail(e, "Could not load workouts."),
+      );
+  }, [login, attempt, fail]);
+
+  // Back online: time to send what is not saved.
+  useEffect(() => {
+    const retry = () => setAttempt((n) => n + 1);
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, []);
 
   /** The workout is created at once, then opened for editing. */
   async function handleNew() {
@@ -68,6 +93,14 @@ export function WorkoutsScreen({ onUnauthorized }: { onUnauthorized: () => void 
         </p>
       )}
 
+      {unsaved > 0 && (
+        <p className="mb-4 text-sm text-destructive" role="status">
+          {unsaved === 1 ? "A workout has" : `${unsaved} workouts have`} changes that are not saved.{" "}
+          <button type="button" className="underline" onClick={() => setAttempt((n) => n + 1)}>
+            Retry
+          </button>
+        </p>
+      )}
       {workouts?.length === 0 && <p className="my-6 text-muted-foreground">No workouts yet.</p>}
       {workouts && workouts.length > 0 && (
         <Card className="py-0">

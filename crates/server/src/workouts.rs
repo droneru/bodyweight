@@ -70,25 +70,27 @@ struct EntryBody {
 }
 
 #[derive(Serialize, Deserialize)]
-struct SetBody {
+pub struct SetBody {
     reps: u32,
     /// Kilograms such as `72.5`, a string so that no floats are involved.
     /// `null` for a set done with bodyweight only.
     weight: Option<String>,
 }
 
+impl From<Set> for SetBody {
+    fn from(set: Set) -> Self {
+        Self {
+            reps: set.reps.get(),
+            weight: set.weight.map(|w| w.to_string()),
+        }
+    }
+}
+
 impl From<Workout> for WorkoutBody {
     fn from(workout: Workout) -> Self {
         let entry = |entry: ExerciseEntry| EntryBody {
             exercise_id: entry.exercise.as_str().to_owned(),
-            sets: entry
-                .sets
-                .into_iter()
-                .map(|set| SetBody {
-                    reps: set.reps.get(),
-                    weight: set.weight.map(|w| w.to_string()),
-                })
-                .collect(),
+            sets: entry.sets.into_iter().map(Into::into).collect(),
         };
         Self {
             date: workout.date.to_string(),

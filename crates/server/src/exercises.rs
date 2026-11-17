@@ -1,22 +1,24 @@
 //! Exercises API: the catalog of standard exercises and the user's custom exercises,
 //! see docs/spec.md §1.4.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch};
 use axum::{Json, Router};
-use bodyweight_domain::{CustomExercise, ExerciseName, StandardExercise};
+use bodyweight_domain::{CustomExercise, ExerciseName, StandardExercise, WorkoutId};
 use bodyweight_storage::DeleteExercise;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::CurrentUser;
+use crate::workouts::SetBody;
 use crate::{ApiError, AppState};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/exercises", get(list).post(create))
         .route("/exercises/{id}", patch(update).delete(delete))
+        .route("/exercises/{id}/last-sets", get(last_sets))
 }
 
 #[derive(Serialize)]
@@ -143,6 +145,29 @@ async fn delete(
             .into_response(),
         DeleteExercise::NotFound => StatusCode::NOT_FOUND.into_response(),
     })
+}
+
+#[derive(Deserialize)]
+struct LastSetsQuery {
+    /// The id of the workout being edited: its entries are passed over.
+    except: Option<String>,
+}
+
+/// The sets of the last exercise entry of the exercise, standard or custom, which the app
+/// offers as suggested sets. Empty if the user has never done the exercise.
+async fn last_sets(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(id): Path<String>,
+    Query(query): Query<LastSetsQuery>,
+) -> Result<Json<Vec<SetBody>>, ApiError> {
+    // An id of another form is not the id of a workout, so there is nothing to pass over.
+    let except = query.except.and_then(|id| id.parse::<WorkoutId>().ok());
+    let sets = state
+        .storage
+        .last_sets(&user.login, &id, except.as_ref())
+        .await?;
+    Ok(Json(sets.into_iter().map(Into::into).collect()))
 }
 
 fn bad_request(message: String) -> Response {

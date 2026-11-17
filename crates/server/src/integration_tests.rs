@@ -754,3 +754,169 @@ async fn a_custom_exercise_used_in_a_workout_cannot_be_deleted() {
     );
     assert_eq!(app.exercises(&cookie).await["custom"], json!([]));
 }
+
+impl TestApp {
+    async fn last_sets(&self, cookie: &str, exercise_id: &str, except: Option<&str>) -> Value {
+        let query = except.map(|id| format!("?except={id}")).unwrap_or_default();
+        let path = format!("/api/exercises/{exercise_id}/last-sets{query}");
+        let (status, body) = self.send(Method::GET, &path, Some(cookie), None).await;
+        assert_eq!(status, StatusCode::OK);
+        serde_json::from_str(&body).unwrap()
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn last_sets_come_from_the_last_entry_of_the_exercise() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+    let dips = app.create_exercise(&cookie, "Dips").await;
+
+    let path = "/api/exercises/squat/last-sets";
+    let (status, _) = app.send(Method::GET, path, None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(app.last_sets(&cookie, "squat", None).await, json!([]));
+    assert_eq!(app.last_sets(&cookie, "no-such", None).await, json!([]));
+
+    // The latest date wins, not the workout saved last.
+    let newer = json!({
+        "date": "2026-11-03",
+        "note": "",
+        "entries": [
+            { "exercise_id": "squat", "sets": [{ "reps": 5, "weight": "60" }] },
+            { "exercise_id": dips, "sets": [{ "reps": 12, "weight": null }] },
+            { "exercise_id": "squat", "sets": [
+                { "reps": 3, "weight": "72.5" },
+                { "reps": 2, "weight": "80" },
+            ] },
+            { "exercise_id": "squat", "sets": [] },
+        ],
+    });
+    let older = json!({
+        "date": "2026-11-01",
+        "note": "",
+        "entries": [
+            { "exercise_id": "squat", "sets": [{ "reps": 8, "weight": "50" }] },
+            { "exercise_id": "bench-press", "sets": [{ "reps": 5, "weight": "70" }] },
+        ],
+    });
+    app.put_workout(&cookie, WORKOUT_A, newer).await;
+    app.put_workout(&cookie, WORKOUT_B, older).await;
+
+    // The last entry with sets within the workout, its sets in order.
+    assert_eq!(
+        app.last_sets(&cookie, "squat", None).await,
+        json!([{ "reps": 3, "weight": "72.5" }, { "reps": 2, "weight": "80" }])
+    );
+    assert_eq!(
+        app.last_sets(&cookie, &dips, None).await,
+        json!([{ "reps": 12, "weight": null }])
+    );
+    assert_eq!(
+        app.last_sets(&cookie, "bench-press", None).await,
+        json!([{ "reps": 5, "weight": "70" }])
+    );
+    assert_eq!(app.last_sets(&cookie, "deadlift", None).await, json!([]));
+
+    // The workout being edited is passed over.
+    assert_eq!(
+        app.last_sets(&cookie, "squat", Some(WORKOUT_A)).await,
+        json!([{ "reps": 8, "weight": "50" }])
+    );
+    assert_eq!(
+        app.last_sets(&cookie, &dips, Some(WORKOUT_A)).await,
+        json!([])
+    );
+    assert_eq!(
+        app.last_sets(&cookie, "squat", Some("not-an-id")).await,
+        json!([{ "reps": 3, "weight": "72.5" }, { "reps": 2, "weight": "80" }])
+    );
+
+    // Another user has done none of this.
+    let bob = app.sign_in().await;
+    assert_eq!(app.last_sets(&bob, "squat", None).await, json!([]));
+}
+
+#[tokio::test]
+#[ignore = "needs YDB, run `make integration-test`"]
+async fn prs_are_computed_over_90_days_and_all_time() {
+    let app = TestApp::new().await;
+    let cookie = app.sign_in().await;
+    let prs = async || -> Value {
+        let (status, body) = app.send(Method::GET, "/api/prs", Some(&cookie), None).await;
+        assert_eq!(status, StatusCode::OK);
+        serde_json::from_str(&body).unwrap()
+    };
+
+    let (status, _) = app.send(Method::GET, "/api/prs", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        prs().await,
+        json!([
+            { "exercise_id": "pull-ups", "days_90": null, "all_time": null },
+            { "exercise_id": "bench-press", "days_90": null, "all_time": null },
+            { "exercise_id": "squat", "days_90": null, "all_time": null },
+            { "exercise_id": "deadlift", "days_90": null, "all_time": null },
+        ])
+    );
+
+    let today = crate::dates::today();
+    let recent = (today - chrono::Days::new(89)).to_string();
+    let old = (today - chrono::Days::new(90)).to_string();
+    app.put_workout(
+        &cookie,
+        WORKOUT_A,
+        json!({
+            "date": recent,
+            "note": "",
+            "entries": [
+                // The example of docs/spec.md §2.2.
+                { "exercise_id": "bench-press", "sets": [
+                    { "reps": 1, "weight": "100" },
+                    { "reps": 10, "weight": "90" },
+                ] },
+                { "exercise_id": "pull-ups", "sets": [
+                    { "reps": 9, "weight": null },
+                    { "reps": 12, "weight": "10" },
+                ] },
+            ],
+        }),
+    )
+    .await;
+    app.put_workout(
+        &cookie,
+        WORKOUT_B,
+        json!({
+            "date": old,
+            "note": "",
+            "entries": [
+                { "exercise_id": "bench-press", "sets": [{ "reps": 5, "weight": "110" }] },
+                { "exercise_id": "squat", "sets": [{ "reps": 5, "weight": "70" }] },
+                { "exercise_id": "pull-ups", "sets": [{ "reps": 9, "weight": null }] },
+            ],
+        }),
+    )
+    .await;
+
+    assert_eq!(
+        prs().await,
+        json!([
+            {
+                "exercise_id": "pull-ups",
+                "days_90": { "date": recent, "reps": 9, "weight": null, "estimated_1rm": null },
+                "all_time": { "date": old, "reps": 9, "weight": null, "estimated_1rm": null },
+            },
+            {
+                "exercise_id": "bench-press",
+                "days_90": { "date": recent, "reps": 10, "weight": "90", "estimated_1rm": "120" },
+                "all_time": { "date": old, "reps": 5, "weight": "110", "estimated_1rm": "128.3" },
+            },
+            {
+                "exercise_id": "squat",
+                "days_90": null,
+                "all_time": { "date": old, "reps": 5, "weight": "70", "estimated_1rm": "81.7" },
+            },
+            { "exercise_id": "deadlift", "days_90": null, "all_time": null },
+        ])
+    );
+}

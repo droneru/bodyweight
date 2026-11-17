@@ -45,7 +45,7 @@ const saving = new Set<Promise<unknown>>();
 /** All workouts of the signed-in user, newest first. */
 export async function fetchWorkouts(): Promise<WorkoutSummary[]> {
   // Leaving a workout saves its last change; the list waits, to show the workout as it was left.
-  await Promise.allSettled(saving);
+  await settleSaves();
   const response = await apiFetch("GET", "/api/workouts");
   return (await response.json()) as WorkoutSummary[];
 }
@@ -74,6 +74,21 @@ export async function putWorkout(id: string, workout: Workout): Promise<void> {
 
 export async function deleteWorkout(id: string): Promise<void> {
   await apiFetch("DELETE", workoutPath(id));
+}
+
+/**
+ * The sets of the last exercise entry of the exercise, not counting the workout `except`.
+ * Empty if the user has never done the exercise.
+ */
+export async function fetchLastSets(exerciseId: string, except: string): Promise<WorkoutSet[]> {
+  const path = `/api/exercises/${encodeURIComponent(exerciseId)}/last-sets`;
+  const response = await apiFetch("GET", `${path}?except=${encodeURIComponent(except)}`);
+  return (await response.json()) as WorkoutSet[];
+}
+
+/** Waits for the saves under way, however they end. */
+export async function settleSaves(): Promise<void> {
+  await Promise.allSettled(saving);
 }
 
 /** A random id for a new workout: 32 lowercase hex digits. */
