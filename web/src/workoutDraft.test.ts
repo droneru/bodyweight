@@ -125,9 +125,9 @@ test("a set that is not marked done does not have to be valid", () => {
   expect(toWorkout(edited)?.entries).toEqual([{ exercise_id: "squat", sets: [] }]);
 });
 
-test("repeat set copies the last set, to be marked done", () => {
-  const copy = repeatedSet([newSet("5", "60"), newSet("3", "72,5")]);
-  expect([copy.reps, copy.weight, copy.done]).toEqual(["3", "72,5", false]);
+test("repeat set copies the last set and marks the copy done", () => {
+  const copy = repeatedSet([newSet("5", "60"), newSet("3", "72,5", false)]);
+  expect([copy.reps, copy.weight, copy.done]).toEqual(["3", "72,5", true]);
 });
 
 test("repeat set after a blank row or no rows gives a row to fill in", () => {

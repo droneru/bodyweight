@@ -29,7 +29,7 @@ const MAX_WEIGHT = 1000;
 
 let lastKey = 0;
 
-/** A row for the user to fill in; rows the app fills in start without the "done" mark. */
+/** A row for the user to fill in; suggested sets start without the "done" mark. */
 export function newSet(reps = "", weight = "", done = true): DraftSet {
   return { key: ++lastKey, reps, weight, done };
 }
@@ -40,10 +40,10 @@ export function suggestedSets(last: WorkoutSet[]): DraftSet[] {
   return last.map((set) => newSet(String(set.reps), set.weight ?? "", false));
 }
 
-/** The row "Repeat set" adds: a copy of the last set to mark done, or a row to fill in. */
+/** The row "Repeat set" adds: a copy of the last set, already marked done, or a row to fill in. */
 export function repeatedSet(sets: DraftSet[]): DraftSet {
   const last = sets.at(-1);
-  return last && !isBlank(last) ? newSet(last.reps, last.weight, false) : newSet();
+  return last && !isBlank(last) ? newSet(last.reps, last.weight) : newSet();
 }
 
 export function newEntry(exerciseId: string, sets: DraftSet[]): DraftEntry {
