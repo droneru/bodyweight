@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { devSignIn, YANDEX_SIGN_IN_URL } from "./auth";
 import type { User } from "./auth";
+import { GITHUB_URL } from "./links";
 
 /** The PRs table of the landing page: exercise, 90 days, all time. */
 const EXAMPLE_PRS = [
@@ -96,6 +97,22 @@ export function Landing({ onSignIn }: { onSignIn: (user: User) => void }) {
             </TableBody>
           </Table>
         </Card>
+      </section>
+
+      <section className="pb-4">
+        <h2 className="mb-3 text-xl font-bold">Open source</h2>
+        <p className="text-base text-muted-foreground">
+          Bodyweight is an open source project. The code is on{" "}
+          <a
+            className="text-foreground underline underline-offset-4"
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+          : read it, report an issue or run your own copy.
+        </p>
       </section>
     </main>
   );

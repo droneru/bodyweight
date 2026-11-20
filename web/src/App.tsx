@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { fetchMe, signOut } from "./auth";
 import type { User } from "./auth";
 import { Landing } from "./Landing";
+import { GITHUB_URL } from "./links";
 import { MyExercisesScreen } from "./MyExercisesScreen";
 import { PrsScreen } from "./PrsScreen";
 import { WeighInsScreen } from "./WeighInsScreen";
@@ -57,7 +58,19 @@ export function App() {
       {user === null && <Landing onSignIn={setUser} />}
       {user && <Screens login={user.login} onUnauthorized={handleUnauthorized} />}
 
-      <footer className="pt-6 pb-8 text-sm text-muted-foreground">bodyweight.ru</footer>
+      <footer className="flex gap-4 pt-6 pb-8 text-sm text-muted-foreground">
+        <span>bodyweight.ru</span>
+        {user && (
+          <a
+            className="underline underline-offset-4"
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+        )}
+      </footer>
     </div>
   );
 }
